@@ -63,9 +63,13 @@ CONNECTED_ID_CACHE = Path(__file__).parent / ".connected_id.json"
 # --- 조회할 계좌/기관 ---
 # organization 코드: 카카오뱅크 0090 / 토스뱅크 0092 / 신한 0088
 # 카뱅은 앱 전용이라 간편인증(폰 승인)만 가능하다.
-def _accounts(env_key: str) -> list:
-    """쉼표로 구분된 계좌번호 목록. 가상계좌도 번호만 여기 추가하면 됨."""
-    return [a.strip() for a in os.environ.get(env_key, "").split(",") if a.strip()]
+def _accounts(*env_keys: str) -> list:
+    """쉼표로 구분된 계좌번호 목록 (단수/복수 env 이름 모두 허용). 가상계좌도 번호만 추가."""
+    for k in env_keys:
+        v = os.environ.get(k, "")
+        if v.strip():
+            return [a.strip() for a in v.split(",") if a.strip()]
+    return []
 
 
 # 간편인증 사용자 정보 (기관/간편인증수단별로 필요한 키가 다름 → 문서 확인)
@@ -80,9 +84,9 @@ _AUTH = {
 # 은행마다 계좌 여러 개 가능 (가상계좌 포함) — .env에 쉼표로 나열: KAKAO_ACCOUNTS=111,222,가상계좌번호
 TARGETS = [
     {"nickname": "카카오뱅크", "organization": "0090",
-     "accounts": _accounts("KAKAO_ACCOUNTS"), "auth": dict(_AUTH)},
+     "accounts": _accounts("KAKAO_ACCOUNTS", "KAKAO_ACCOUNT"), "auth": dict(_AUTH)},
     {"nickname": "토스뱅크",   "organization": "0092",
-     "accounts": _accounts("TOSS_ACCOUNTS"),  "auth": dict(_AUTH)},
+     "accounts": _accounts("TOSS_ACCOUNTS", "TOSS_ACCOUNT"),  "auth": dict(_AUTH)},
 ]
 
 # 내 계좌번호 전체 (상대방이 여기 들어있으면 '자기계좌 이체'로 자동표시 → 소비 제외 후보)
