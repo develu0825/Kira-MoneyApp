@@ -481,7 +481,7 @@
         <div class="lock-inner">
           <div class="lock-logo wm">Kira</div>
           <div class="lock-title" id="lockTitle">PIN</div>
-          <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span></div>
+          <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <div class="lock-err" id="lockErr"></div>
           <div class="keypad" id="keypad"></div>
         </div>
@@ -929,7 +929,7 @@
     if(!stored){
       if(pinFirst===null){pinFirst=pinBuf;pinBuf="";renderDots();lockTitle("PIN 확인 (다시 입력)");}
       else if(pinBuf===pinFirst){LS.setItem('kira_pin',await sha(pinBuf));unlock();}
-      else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (4자리)");}
+      else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (6자리)");}
     }else if(await sha(pinBuf)===stored){unlock();}
     else{pinBuf="";renderDots();lockErr("PIN이 틀렸어요");}
   }
@@ -939,7 +939,7 @@
       if(k===''){b.className='blank';b.disabled=true;}
       else{b.textContent=k;b.addEventListener('click',async()=>{lockErr("");
         if(k==='⌫'){pinBuf=pinBuf.slice(0,-1);renderDots();}
-        else if(pinBuf.length<4){pinBuf+=k;renderDots();if(pinBuf.length===4)await pinSubmit();}});}
+        else if(pinBuf.length<6){pinBuf+=k;renderDots();if(pinBuf.length===6)await pinSubmit();}});}
       kp.appendChild(b);});
   }
   function unlock(){document.getElementById('lockScreen').style.display='none';startApp();}
@@ -951,7 +951,7 @@
   }
   // boot
   buildKeypad();
-  lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (4자리)");
+  lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (6자리)");
 </script>
 </body>
 </html>
