@@ -63,31 +63,30 @@ CONNECTED_ID_CACHE = Path(__file__).parent / ".connected_id.json"
 # --- 조회할 계좌/기관 ---
 # organization 코드: 카카오뱅크 0090 / 토스뱅크 0092 / 신한 0088
 # 카뱅은 앱 전용이라 간편인증(폰 승인)만 가능하다.
+def _accounts(env_key: str) -> list:
+    """쉼표로 구분된 계좌번호 목록. 가상계좌도 번호만 여기 추가하면 됨."""
+    return [a.strip() for a in os.environ.get(env_key, "").split(",") if a.strip()]
+
+
+# 간편인증 사용자 정보 (기관/간편인증수단별로 필요한 키가 다름 → 문서 확인)
+_AUTH = {
+    "loginType": "1",        # ★ 간편인증 코드값은 문서 확인 (기관별 상이)
+    "loginTypeLevel": "1",   # ★ 간편인증 수단 (문서 확인)
+    "userName": os.environ.get("MY_NAME", "홍길동"),
+    "birthDate": os.environ.get("MY_BIRTH", "900101"),  # YYMMDD
+    "phoneNo": os.environ.get("MY_PHONE", "01000000000"),
+}
+
+# 은행마다 계좌 여러 개 가능 (가상계좌 포함) — .env에 쉼표로 나열: KAKAO_ACCOUNTS=111,222,가상계좌번호
 TARGETS = [
-    {
-        "nickname": "카카오뱅크",
-        "organization": "0090",
-        "account": os.environ.get("KAKAO_ACCOUNT", ""),  # 계좌번호(- 없이)
-        # 간편인증 사용자 정보 (기관/간편인증수단별로 필요한 키가 다름 → 문서 확인)
-        "auth": {
-            "loginType": "1",        # ★ 간편인증 코드값은 문서 확인 (기관별 상이)
-            "loginTypeLevel": "1",   # ★ 1=카카오톡 등 간편인증 수단 (문서 확인)
-            "userName": os.environ.get("MY_NAME", "홍길동"),
-            "birthDate": os.environ.get("MY_BIRTH", "900101"),  # YYMMDD
-            "phoneNo": os.environ.get("MY_PHONE", "01000000000"),
-        },
-    },
-    # 토스도 쓸 경우 아래 주석 해제
-    # {
-    #     "nickname": "토스뱅크",
-    #     "organization": "0092",
-    #     "account": os.environ.get("TOSS_ACCOUNT", ""),
-    #     "auth": { ... 위와 동일 구조 ... },
-    # },
+    {"nickname": "카카오뱅크", "organization": "0090",
+     "accounts": _accounts("KAKAO_ACCOUNTS"), "auth": dict(_AUTH)},
+    {"nickname": "토스뱅크",   "organization": "0092",
+     "accounts": _accounts("TOSS_ACCOUNTS"),  "auth": dict(_AUTH)},
 ]
 
-# 내 계좌번호 목록 (상대방이 여기 들어있으면 '자기계좌 이체'로 자동표시 → 소비에서 제외 후보)
-MY_ACCOUNTS = {t["account"] for t in TARGETS if t["account"]}
+# 내 계좌번호 전체 (상대방이 여기 들어있으면 '자기계좌 이체'로 자동표시 → 소비 제외 후보)
+MY_ACCOUNTS = {a for t in TARGETS for a in t["accounts"]}
 MY_ACCOUNT_NAMES = {t["nickname"] for t in TARGETS}
 
 # 수시입출 거래내역 상품 URL (★ 실제 경로/파라미터는 문서에서 확인)
@@ -294,7 +293,7 @@ def guess_self_transfer(counterparty: str) -> bool:
     return False
 
 
-def parse_and_store(conn: sqlite3.Connection, target: dict, res: dict) -> int:
+def parse_and_store(conn: sqlite3.Connection, target: dict, account: str, res: dict) -> int:
     """
     CODEF 응답의 거래내역 리스트를 파싱해 저장.
     ★ 실제 필드명(resTrDate, resTrTime, resAccountOut, resAccountIn,
@@ -320,12 +319,12 @@ def parse_and_store(conn: sqlite3.Connection, target: dict, res: dict) -> int:
                         or t.get("resTrDesc") or "").strip()
         memo_bank = (t.get("resAccountDesc2") or "").strip()
 
-        tx_key = f"{target['organization']}|{target['account']}|{when}|{in_amt}|{out_amt}|{balance}|{i}"
+        tx_key = f"{target['organization']}|{account}|{when}|{in_amt}|{out_amt}|{balance}|{i}"
 
         upsert_transaction(conn, {
             "tx_key": tx_key,
             "organization": target["organization"],
-            "account": target["account"],
+            "account": account,
             "datetime": when,
             "in_amount": in_amt,
             "out_amount": out_amt,
@@ -361,32 +360,31 @@ def main() -> None:
     init_db(conn)
 
     for target in TARGETS:
-        if not target["account"]:
-            print(f"⏭  {target['nickname']}: 계좌번호 미설정, 건너뜀")
+        if not target["accounts"]:
+            print(f"⏭  {target['nickname']}: 계좌 미설정, 건너뜀")
             continue
 
-        print(f"\n=== {target['nickname']} 수집 시작 ===")
-        connected_id = ensure_connected_id(codef, target)
+        print(f"\n=== {target['nickname']} 수집 시작 ({len(target['accounts'])}개 계좌) ===")
+        connected_id = ensure_connected_id(codef, target)   # 은행당 간편인증 1번
         if not connected_id:
             continue
 
-        param = {
-            "connectedId": connected_id,
-            "organization": target["organization"],
-            "account": target["account"],
-            "startDate": start,
-            "endDate": end,
-            "orderBy": "0",      # 0=최신순 (문서 확인)
-            "inquiryType": "1",  # 조회구분 (문서 확인)
-        }
-        res = request_with_simple_auth(codef, TRANSACTION_URL, param)
-
-        code = (res.get("result") or {}).get("code")
-        if code and code != "CF-00000":  # CF-00000 = 정상
-            print(f"⚠️ 조회 응답코드 {code}: {(res.get('result') or {}).get('message')}")
-
-        n = parse_and_store(conn, target, res)
-        print(f"✅ {target['nickname']}: {n}건 저장/갱신")
+        for account in target["accounts"]:                  # 계좌(가상계좌 포함)마다 조회
+            param = {
+                "connectedId": connected_id,
+                "organization": target["organization"],
+                "account": account,
+                "startDate": start,
+                "endDate": end,
+                "orderBy": "0",      # 0=최신순 (문서 확인)
+                "inquiryType": "1",  # 조회구분 (문서 확인)
+            }
+            res = request_with_simple_auth(codef, TRANSACTION_URL, param)
+            code = (res.get("result") or {}).get("code")
+            if code and code != "CF-00000":  # CF-00000 = 정상
+                print(f"⚠️ {account} 응답코드 {code}: {(res.get('result') or {}).get('message')}")
+            n = parse_and_store(conn, target, account, res)
+            print(f"✅ {target['nickname']} {account}: {n}건 저장/갱신")
 
     # 간단 요약: '소비로 집계되는' 금액 = 출금 중 제외/자기이체 제외
     cur = conn.execute(
