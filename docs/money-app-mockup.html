@@ -498,7 +498,7 @@
 <script>
   const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const fmt=n=>"₩"+Math.round(n).toLocaleString("ko-KR");
-  const CATS=["식비","교통","쇼핑","구독","편의점","의료","기타"];
+  const CATS=["식비","교통","쇼핑","문화","구독","편의점","의료","기타"];
 
   // 한글 금액 (예: 150000 → "십오만원")
   function koreanWon(n){
@@ -555,7 +555,7 @@
   const LENT=[{name:"김철수",amount:150000,date:"10.15",repaid:false},{name:"이영희",amount:80000,date:"10.02",repaid:true}];
   const INCOME=[{name:"급여 (주)○○",amount:3200000,date:"10.13"}];
   // 데이트는 교차 태그(다른 항목과 중복). 홈 전체 목표 집계에선 제외하고 별도 바로 관리.
-  const GOALS={식비:300000,데이트:150000,쇼핑:150000,교통:40000,구독:30000,편의점:30000,기타:50000};
+  const GOALS={식비:300000,데이트:150000,쇼핑:150000,문화:100000,교통:50000,구독:30000,편의점:30000,기타:50000};
 
   let mode="real",lastSpend=0,current="home";
   const views=document.getElementById("views"),listEl=document.getElementById("list");

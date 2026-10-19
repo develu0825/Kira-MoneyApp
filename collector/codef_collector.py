@@ -21,10 +21,17 @@ CODEF 거래내역 수집기 (카카오뱅크 / 토스 / 신한 등)
 """
 
 import os
+import sys
 import json
 import sqlite3
 import datetime as dt
 from pathlib import Path
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 from easycodefpy import Codef, ServiceType
 

@@ -22,6 +22,12 @@ import sqlite3
 import subprocess
 import datetime
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import kira_crypto
 
 HERE = os.path.dirname(os.path.abspath(__file__))
