@@ -1,0 +1,29 @@
+# --- secrets / credentials — NEVER commit ---
+.env
+.env.*
+*.key
+*.pem
+.connected_id.json
+
+# --- local financial data ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- tooling / editor state ---
+.omc/
+.vscode/
+.idea/
+
+# --- design references (third-party, copyrighted) ---
+reference/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
