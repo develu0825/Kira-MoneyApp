@@ -152,6 +152,8 @@
   .cat{margin-top:18px;}
   .goalrow{cursor:pointer;}
   .goalrow .tag{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px;}
+  .goalrow .tag.auto{color:var(--muted);background:var(--track);}
+  .cat.tappable{cursor:pointer;}
   .cat-top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600;}
   .cat-top .pct{color:var(--muted);font-size:12px;font-weight:600;margin-left:6px;}
   .cat-top .cat-amt{font-variant-numeric:tabular-nums;}
@@ -449,6 +451,17 @@
       </div>
 
       <!-- info sheet (값 설명) -->
+      <!-- category detail sheet -->
+      <div class="sheet-backdrop" id="cbackdrop"></div>
+      <div class="sheet" id="catSheet" role="dialog" aria-modal="true" aria-label="카테고리 상세">
+        <div class="sheet-grip"></div>
+        <div class="sheet-head"><div><div class="sheet-name" id="cat-name"></div><div class="sheet-time" id="cat-sub"></div></div><div class="sheet-amt" id="cat-amt"></div></div>
+        <div class="track" style="height:8px;margin:14px 0 4px"><div class="bar" id="cat-bar"></div></div>
+        <div class="infolist" id="cat-list" style="max-height:42vh"></div>
+        <button class="sheet-primary" id="cat-edit">목표 수정</button>
+        <button class="sheet-close" id="cat-close">닫기</button>
+      </div>
+
       <div class="sheet-backdrop" id="ibackdrop"></div>
       <div class="sheet" id="infoSheet" role="dialog" aria-modal="true" aria-label="값 설명">
         <div class="sheet-grip"></div>
@@ -555,7 +568,9 @@
   const LENT=[{name:"김철수",amount:150000,date:"10.15",repaid:false},{name:"이영희",amount:80000,date:"10.02",repaid:true}];
   const INCOME=[{name:"급여 (주)○○",amount:3200000,date:"10.13"}];
   // 데이트는 교차 태그(다른 항목과 중복). 홈 전체 목표 집계에선 제외하고 별도 바로 관리.
-  const GOALS={식비:300000,데이트:150000,쇼핑:150000,문화:100000,교통:50000,구독:30000,편의점:30000,기타:50000};
+  // 목표는 기본적으로 '전월 실제 지출' 기준 자동 책정. 사용자가 수정하면 GOAL_OVER에 고정 저장.
+  const CAT_LIST=["식비","데이트","쇼핑","문화","교통","구독","편의점","의료","기타"];
+  let GOAL_OVER={};  // 사용자가 직접 수정한 카테고리만 {cat: 금액}
 
   let mode="real",lastSpend=0,current="home";
   const views=document.getElementById("views"),listEl=document.getElementById("list");
@@ -651,11 +666,18 @@
     (function f(now){const p=Math.min(1,(now-s)/(dur||600)),e=1-Math.pow(1-p,3);el.textContent=fmt(to*e);if(p<1)requestAnimationFrame(f);})(performance.now());
   }
 
-  function overallGoal(){return Object.entries(GOALS).filter(([k])=>k!=="데이트").reduce((s,[,v])=>s+v,0);}
-  function spendForGoal(cat){
-    let s=0;TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out||!inM(t))return;
+  // 특정 월(mIdx)의 카테고리 지출
+  function spendForCatMonth(cat,mIdx){
+    const mm=String(mIdx+1).padStart(2,"0");let s=0;
+    TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out)return;
+      if(!(t.date&&t.date.split(".")[0]===mm))return;
       if(cat==="데이트"){if(t.isDate)s+=t.out;}else if((t.cat||"기타")===cat)s+=t.out;});
     return s;}
+  function spendForGoal(cat){return spendForCatMonth(cat,curMonth);}          // 이번 달 지출
+  function autoBudget(cat){return spendForCatMonth(cat,(curMonth+11)%12);}    // 전월 실제 지출
+  function goalFor(cat){return GOAL_OVER[cat]!==undefined?GOAL_OVER[cat]:autoBudget(cat);}
+  function isAutoGoal(cat){return GOAL_OVER[cat]===undefined;}
+  function overallGoal(){return CAT_LIST.filter(c=>c!=="데이트").reduce((s,c)=>s+goalFor(c),0);}
   function updateGoalUI(){
     const spend=getSpend(),goal=overallGoal(),pct=goal?spend/goal:0,over=spend>goal,w=Math.min(100,pct*100);
     const b=document.getElementById("goalBar");if(b){b.style.width=w+"%";b.style.background=over?"var(--danger)":"var(--accent)";}
@@ -666,18 +688,25 @@
   }
   function renderGoals(){
     const el=document.getElementById("goalList");if(!el)return;el.innerHTML="";
-    Object.keys(GOALS).forEach(cat=>{
-      const spent=spendForGoal(cat),goal=GOALS[cat],pct=goal?spent/goal:0,over=spent>goal,w=Math.min(100,pct*100);
+    // %(지출/목표) 높은 순 정렬
+    const rows=CAT_LIST.map(cat=>{const spent=spendForGoal(cat),goal=goalFor(cat);
+      return {cat,spent,goal,pct:goal>0?spent/goal:(spent>0?99:0)};})
+      .sort((a,b)=>b.pct-a.pct);
+    rows.forEach(({cat,spent,goal,pct})=>{
+      const over=spent>goal&&goal>0,w=Math.min(100,pct*100);
       const d=document.createElement("div");d.className="cat goalrow";
-      const tag=cat==="데이트"?'<span class="tag">중복</span>':'';
+      const tag=cat==="데이트"?'<span class="tag">중복</span>':(isAutoGoal(cat)?'<span class="tag auto">자동</span>':'');
       d.innerHTML=`<div class="cat-top"><span>${cat}${tag}<span class="pct">${Math.round(pct*100)}%</span></span><span class="cat-amt">${fmt(spent)} / ${fmt(goal)}</span></div><div class="track"><div class="bar" style="width:${w}%;background:${over?"var(--danger)":"var(--accent)"}"></div></div>`;
-      d.addEventListener("click",()=>openCatGoalForm(cat));
+      d.addEventListener("click",()=>openCatDetail(cat));   // 탭 → 세부 내역
       el.appendChild(d);
     });
   }
-  function openCatGoalForm(cat){openForm({title:`${cat} budget`,
-    fields:[{key:"goal",label:`${cat} budget (₩)`,type:"number",value:GOALS[cat]}],
-    onSave:v=>{const g=+v.goal;if(g>=0){GOALS[cat]=g;saveGoals();renderGoals();updateGoalUI();toast("저장됐어요");}}});}
+  function openCatGoalForm(cat){openForm({title:`${cat} 목표`,
+    fields:[{key:"goal",label:`${cat} 목표 (₩) · 비우면 전월 자동`,type:"number",value:GOAL_OVER[cat]}],
+    onSave:v=>{const raw=v.goal.replace(/[^0-9]/g,"");
+      if(raw==="")delete GOAL_OVER[cat];      // 비우면 다시 자동(전월 기준)
+      else GOAL_OVER[cat]=+raw;
+      saveGoals();renderGoals();updateGoalUI();toast(raw===""?"전월 기준 자동으로 전환":"목표 저장됨");}});}
   function renderBudget(){
     const il=document.getElementById("incList");il.innerHTML="";
     INCOME.forEach((x,i)=>{const sw=document.createElement("div");sw.className="swipe";
@@ -712,9 +741,10 @@
     if(dateSpent>0)list.push({c:"데이트",v:dateSpent,multi:true});
     list.forEach((row,idx)=>{
       const pct=Math.round(row.v/total*100);
-      const d=document.createElement("div");d.className="cat reveal";
+      const d=document.createElement("div");d.className="cat reveal tappable";
       const tag=row.multi?'<span class="tag">중복</span>':'';
       d.innerHTML=`<div class="cat-top"><span>${row.c}${tag}<span class="pct">${pct}%</span></span><span class="cat-amt">₩0</span></div><div class="track"><div class="bar"></div></div>`;
+      d.addEventListener("click",()=>openCatDetail(row.c));   // 탭 → 세부 내역
       el.appendChild(d);
       const bar=d.querySelector(".bar"),amt=d.querySelector(".cat-amt"),delay=180+idx*90;
       bar.style.transitionDelay=(reduceMotion?0:delay)+"ms";
@@ -819,6 +849,31 @@
   document.getElementById("goalCard").addEventListener("click",()=>navTo("budget"));
   document.getElementById("topTitle").addEventListener("click",()=>navTo("home"));
 
+  // 카테고리 세부 내역 시트
+  const catSheet=document.getElementById("catSheet"),cbackdrop=document.getElementById("cbackdrop");
+  let catCur=null;
+  function openCatDetail(cat){
+    catCur=cat;
+    const spent=spendForGoal(cat),goal=goalFor(cat),pct=goal>0?spent/goal:(spent>0?1:0),over=spent>goal&&goal>0;
+    document.getElementById("cat-name").textContent=cat;
+    document.getElementById("cat-sub").innerHTML=`${MONTHS[curMonth]} · 목표 ${fmt(goal)} ${isAutoGoal(cat)?"(전월 자동)":"(직접 설정)"}`;
+    document.getElementById("cat-amt").textContent=fmt(spent);
+    const bar=document.getElementById("cat-bar");bar.style.width=Math.min(100,pct*100)+"%";bar.style.background=over?"var(--danger)":"var(--accent)";
+    // 이 카테고리의 이번 달 거래 (금액순)
+    const items=TX.filter(t=>t.kind!=="income"&&!t.excluded&&t.out&&inM(t)&&
+      (cat==="데이트"?t.isDate:(t.cat||"기타")===cat)).sort((a,b)=>b.out-a.out);
+    const el=document.getElementById("cat-list");el.innerHTML="";
+    if(!items.length)el.innerHTML='<div class="inforow"><div class="id">이번 달 내역이 없어요.</div></div>';
+    items.forEach(t=>{const r=document.createElement("div");r.className="lent-row";
+      r.innerHTML=`<div class="mid"><div class="nm">${t.name}</div><div class="dt">${t.date.split(".")[0]}월 ${t.date.split(".")[1]}일</div></div><span class="amt">-${fmt(t.out)}</span>`;
+      el.appendChild(r);});
+    cbackdrop.classList.add("open");catSheet.classList.add("open");
+  }
+  function closeCatDetail(){cbackdrop.classList.remove("open");catSheet.classList.remove("open");}
+  cbackdrop.addEventListener("click",closeCatDetail);
+  document.getElementById("cat-close").addEventListener("click",closeCatDetail);
+  document.getElementById("cat-edit").addEventListener("click",()=>{const c=catCur;closeCatDetail();setTimeout(()=>openCatGoalForm(c),260);});
+
   // 섹션 접기/펼치기 (data-collapse로 통일)
   document.querySelectorAll(".collapser[data-collapse]").forEach(btn=>{
     btn.addEventListener("click",()=>{
@@ -874,10 +929,10 @@
   let txOver={};
   function loadUserState(){
     try{txOver=JSON.parse(LS.getItem('kira_tx_over')||'{}');}catch(e){txOver={};}
-    try{const g=JSON.parse(LS.getItem('kira_goals')||'null');if(g)Object.assign(GOALS,g);}catch(e){}
+    try{const g=JSON.parse(LS.getItem('kira_goals')||'null');if(g)GOAL_OVER=g;}catch(e){}
   }
   function saveOver(t){txOver[txKey(t)]={excluded:!!t.excluded,cat:t.cat,isDate:!!t.isDate};LS.setItem('kira_tx_over',JSON.stringify(txOver));}
-  function saveGoals(){LS.setItem('kira_goals',JSON.stringify(GOALS));}
+  function saveGoals(){LS.setItem('kira_goals',JSON.stringify(GOAL_OVER));}
 
   async function decryptBlob(blob,pass){
     const enc=new TextEncoder(),dec=new TextDecoder();
