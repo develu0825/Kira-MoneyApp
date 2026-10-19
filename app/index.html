@@ -242,6 +242,24 @@
   .swipe.open .swipe-body{transform:translateX(-116px);}
   #lentList .swipe:first-child .lent-row,#incList .swipe:first-child .lent-row{border-top:0;}
 
+  /* lock screen (PIN) + passphrase */
+  .lock{position:absolute;inset:0;z-index:60;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:28px;}
+  .lock-inner{display:flex;flex-direction:column;align-items:center;width:100%;max-width:300px;}
+  .lock-logo{font-size:40px;color:var(--accent);margin-bottom:28px;}
+  .lock-title{font-size:16px;font-weight:600;color:var(--ink);}
+  .lock-sub{font-size:12px;color:var(--muted);margin-top:6px;text-align:center;line-height:1.5;}
+  .lock-dots{display:flex;gap:16px;margin:26px 0 8px;}
+  .lock-dots span{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-strong);transition:background .15s var(--ease),border-color .15s var(--ease);}
+  .lock-dots span.on{background:var(--accent);border-color:var(--accent);}
+  .lock-err{font-size:12px;color:var(--danger);font-weight:600;height:16px;margin-bottom:10px;}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;}
+  .keypad button{appearance:none;border:0;background:var(--track);cursor:pointer;font:inherit;font-size:24px;font-weight:600;color:var(--ink);height:64px;border-radius:16px;transition:background .12s var(--ease),transform .08s var(--ease);}
+  .keypad button:active{background:var(--accent-soft);transform:scale(.95);}
+  .keypad button.blank{background:transparent;cursor:default;}
+  .lock input{width:100%;font:inherit;font-size:17px;padding:13px 14px;border-radius:12px;border:1px solid var(--line-strong);background:var(--track);color:var(--ink);margin-top:20px;text-align:center;}
+  .lock input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent;}
+  .lock .passbtn{width:100%;margin-top:12px;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;}
+
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
     .reveal{opacity:1 !important;}
@@ -458,6 +476,29 @@
 
       <div id="toast" style="position:absolute;left:50%;bottom:28px;transform:translate(-50%,20px);z-index:50;background:var(--ink);color:var(--paper);font-size:13px;font-weight:600;padding:11px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:all .3s var(--ease);max-width:84%;text-align:center;line-height:1.4;"></div>
 
+      <!-- PIN lock -->
+      <div class="lock" id="lockScreen">
+        <div class="lock-inner">
+          <div class="lock-logo wm">Kira</div>
+          <div class="lock-title" id="lockTitle">PIN</div>
+          <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span></div>
+          <div class="lock-err" id="lockErr"></div>
+          <div class="keypad" id="keypad"></div>
+        </div>
+      </div>
+
+      <!-- data passphrase -->
+      <div class="lock" id="passScreen" style="display:none">
+        <div class="lock-inner">
+          <div class="lock-logo wm">Kira</div>
+          <div class="lock-title">데이터 암호</div>
+          <div class="lock-sub">수집기 .env의 KIRA_PASSPHRASE와<br>같은 값을 입력하세요</div>
+          <input id="passInput" type="password" placeholder="암호" autocomplete="off">
+          <button class="passbtn" id="passBtn">확인</button>
+          <div class="lock-err" id="passErr"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -573,7 +614,7 @@
     return b;
   }
   function quickToggle(node,i){
-    TX[i].excluded=!TX[i].excluded;const ex=TX[i].excluded;
+    TX[i].excluded=!TX[i].excluded;const ex=TX[i].excluded;saveOver(TX[i]);
     if(mode==="real"&&ex){recompute();if(reduceMotion){renderList(false);return;}
       node.classList.add("collapsing");node.addEventListener("transitionend",()=>renderList(false),{once:true});
     }else{node.classList.toggle("excluded",ex);const a=node.querySelector(".action");if(a)a.textContent=ex?"되돌리기":"소비 아님";recompute();}
@@ -644,7 +685,7 @@
   }
   function openCatGoalForm(cat){openForm({title:`${cat} budget`,
     fields:[{key:"goal",label:`${cat} budget (₩)`,type:"number",value:GOALS[cat]}],
-    onSave:v=>{const g=+v.goal;if(g>=0){GOALS[cat]=g;renderGoals();updateGoalUI();toast("저장됐어요");}}});}
+    onSave:v=>{const g=+v.goal;if(g>=0){GOALS[cat]=g;saveGoals();renderGoals();updateGoalUI();toast("저장됐어요");}}});}
   function renderBudget(){
     const il=document.getElementById("incList");il.innerHTML="";
     INCOME.forEach((x,i)=>{const sw=document.createElement("div");sw.className="swipe";
@@ -750,10 +791,10 @@
     document.getElementById("sh-amt").textContent=(t.kind==="income"?"+":"-")+fmt(t.out||t.in);
     const ce=document.getElementById("sh-cats");ce.innerHTML="";
     CATS.forEach(c=>{const cb=document.createElement("button");cb.className="catbtn";cb.textContent=c;cb.setAttribute("aria-pressed",t.cat===c);
-      cb.addEventListener("click",()=>{TX[i].cat=c;ce.querySelectorAll(".catbtn").forEach(x=>x.setAttribute("aria-pressed",x.textContent===c));});ce.appendChild(cb);});
+      cb.addEventListener("click",()=>{TX[i].cat=c;saveOver(TX[i]);ce.querySelectorAll(".catbtn").forEach(x=>x.setAttribute("aria-pressed",x.textContent===c));});ce.appendChild(cb);});
     const te=document.getElementById("sh-tags");te.innerHTML="";
     const db=document.createElement("button");db.className="catbtn";db.textContent="데이트";db.setAttribute("aria-pressed",!!t.isDate);
-    db.addEventListener("click",()=>{TX[i].isDate=!TX[i].isDate;db.setAttribute("aria-pressed",!!TX[i].isDate);});
+    db.addEventListener("click",()=>{TX[i].isDate=!TX[i].isDate;saveOver(TX[i]);db.setAttribute("aria-pressed",!!TX[i].isDate);});
     te.appendChild(db);
     const tg=document.getElementById("sh-toggle");tg.textContent=t.excluded?"소비로 되돌리기":"소비 아님으로 빼기";tg.classList.toggle("undo",!!t.excluded);
     backdrop.classList.add("open");sheet.classList.add("open");
@@ -761,7 +802,7 @@
   function closeSheet(){backdrop.classList.remove("open");sheet.classList.remove("open");}
   backdrop.addEventListener("click",closeSheet);
   document.getElementById("sh-close").addEventListener("click",closeSheet);
-  document.getElementById("sh-toggle").addEventListener("click",()=>{if(sheetIdx==null)return;TX[sheetIdx].excluded=!TX[sheetIdx].excluded;closeSheet();setTimeout(()=>renderList(false),reduceMotion?0:260);});
+  document.getElementById("sh-toggle").addEventListener("click",()=>{if(sheetIdx==null)return;TX[sheetIdx].excluded=!TX[sheetIdx].excluded;saveOver(TX[sheetIdx]);closeSheet();setTimeout(()=>renderList(false),reduceMotion?0:260);});
 
   const formSheet=document.getElementById("formSheet"),fbackdrop=document.getElementById("fbackdrop");
   function openForm(o){
@@ -823,10 +864,94 @@
   function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.style.opacity=1;el.style.transform="translate(-50%,0)";
     clearTimeout(toastT);toastT=setTimeout(()=>{el.style.opacity=0;el.style.transform="translate(-50%,20px)";},1900);}
 
-  updateMonthUI();setSync();
-  renderBudget();renderLent();
-  applyView("home");
-  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveTogInd);
+  // ===== PIN lock + encrypted data loader =====
+  const LS=window.localStorage;
+  async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+  function txKey(t){return t.id||(t.date+"|"+t.time+"|"+t.name+"|"+(t.out||t.in||0));}
+
+  let txOver={};
+  function loadUserState(){
+    try{txOver=JSON.parse(LS.getItem('kira_tx_over')||'{}');}catch(e){txOver={};}
+    try{const g=JSON.parse(LS.getItem('kira_goals')||'null');if(g)Object.assign(GOALS,g);}catch(e){}
+  }
+  function saveOver(t){txOver[txKey(t)]={excluded:!!t.excluded,cat:t.cat,isDate:!!t.isDate};LS.setItem('kira_tx_over',JSON.stringify(txOver));}
+  function saveGoals(){LS.setItem('kira_goals',JSON.stringify(GOALS));}
+
+  async function decryptBlob(blob,pass){
+    const enc=new TextEncoder(),dec=new TextDecoder();
+    const u=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+    const base=await crypto.subtle.importKey('raw',enc.encode(pass),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:u(blob.salt),iterations:blob.iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u(blob.iv)},key,u(blob.ct));
+    return dec.decode(pt);
+  }
+  let lastSync=null;
+  async function loadData(){
+    try{
+      const res=await fetch('data.enc?t='+Date.now(),{cache:'no-store'});
+      if(res.ok){
+        const blob=await res.json();let pass=LS.getItem('kira_pass'),data=null;
+        for(let tries=0;tries<6;tries++){
+          if(!pass){pass=await askPassphrase();if(pass===null)return;}
+          try{data=JSON.parse(await decryptBlob(blob,pass));LS.setItem('kira_pass',pass);break;}
+          catch(e){pass=null;LS.removeItem('kira_pass');const pe=document.getElementById('passErr');if(pe)pe.textContent='암호가 틀렸어요';}
+        }
+        if(data&&data.transactions){applyData(data);}
+      }
+    }catch(e){/* 데모 데이터 유지 */}
+  }
+  function applyData(data){
+    TX.length=0;
+    data.transactions.forEach(t=>{const o=txOver[txKey(t)]||{};
+      TX.push(Object.assign({},t,{excluded:(o.excluded!==undefined?o.excluded:!!t.excluded),cat:(o.cat!==undefined?o.cat:t.cat),isDate:(o.isDate!==undefined?o.isDate:!!t.isDate)}));});
+    INCOME.length=0;
+    data.transactions.filter(t=>t.kind==='income').forEach(t=>INCOME.push({name:t.name,amount:t.in||0,date:t.date}));
+    LENT.length=0;
+    lastSync=data.updated;
+  }
+  function askPassphrase(){
+    return new Promise(resolve=>{
+      const ps=document.getElementById('passScreen'),inp=document.getElementById('passInput'),btn=document.getElementById('passBtn');
+      ps.style.display='flex';inp.value='';setTimeout(()=>inp.focus(),300);
+      const go=()=>{const v=inp.value.trim();if(!v)return;cleanup();ps.style.display='none';resolve(v);};
+      const key=e=>{if(e.key==='Enter')go();};
+      function cleanup(){btn.removeEventListener('click',go);inp.removeEventListener('keydown',key);}
+      btn.addEventListener('click',go);inp.addEventListener('keydown',key);
+    });
+  }
+
+  let pinBuf="",pinFirst=null;
+  function renderDots(){document.querySelectorAll('#lockDots span').forEach((s,i)=>s.classList.toggle('on',i<pinBuf.length));}
+  function lockTitle(t){document.getElementById('lockTitle').textContent=t;}
+  function lockErr(t){document.getElementById('lockErr').textContent=t||"";}
+  async function pinSubmit(){
+    const stored=LS.getItem('kira_pin');
+    if(!stored){
+      if(pinFirst===null){pinFirst=pinBuf;pinBuf="";renderDots();lockTitle("PIN 확인 (다시 입력)");}
+      else if(pinBuf===pinFirst){LS.setItem('kira_pin',await sha(pinBuf));unlock();}
+      else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (4자리)");}
+    }else if(await sha(pinBuf)===stored){unlock();}
+    else{pinBuf="";renderDots();lockErr("PIN이 틀렸어요");}
+  }
+  function buildKeypad(){
+    const kp=document.getElementById('keypad');kp.innerHTML="";
+    ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k=>{const b=document.createElement('button');
+      if(k===''){b.className='blank';b.disabled=true;}
+      else{b.textContent=k;b.addEventListener('click',async()=>{lockErr("");
+        if(k==='⌫'){pinBuf=pinBuf.slice(0,-1);renderDots();}
+        else if(pinBuf.length<4){pinBuf+=k;renderDots();if(pinBuf.length===4)await pinSubmit();}});}
+      kp.appendChild(b);});
+  }
+  function unlock(){document.getElementById('lockScreen').style.display='none';startApp();}
+  async function startApp(){
+    loadUserState();
+    await loadData();
+    updateMonthUI();setSync(lastSync);renderBudget();renderLent();applyView("home");
+    if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveTogInd);
+  }
+  // boot
+  buildKeypad();
+  lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (4자리)");
 </script>
 </body>
 </html>
