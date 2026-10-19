@@ -196,6 +196,11 @@
   .switch[aria-checked="true"]{background:var(--accent);}
   .switch[aria-checked="true"]::after{transform:translateX(18px);}
   .grouplabel{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:22px 0 2px;}
+  .collapser{appearance:none;border:0;background:transparent;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:space-between;padding:0;font-family:inherit;}
+  .collapser .chev{font-size:12px;color:var(--muted);transition:transform .25s var(--ease);}
+  .collapser[aria-expanded="true"] .chev{transform:rotate(90deg);}
+  .collapsible{overflow:hidden;max-height:0;opacity:0;transition:max-height .34s var(--ease),opacity .25s var(--ease);}
+  .collapsible.open{max-height:2000px;opacity:1;}
 
   .sheet-backdrop{position:absolute;inset:0;background:rgba(10,10,9,.3);opacity:0;pointer-events:none;transition:opacity .34s var(--ease);z-index:20;}
   .sheet-backdrop.open{opacity:1;pointer-events:auto;}
@@ -348,8 +353,8 @@
               <button class="pillbtn" id="addInc" style="margin-top:16px">+ Add income</button>
             </div>
 
-            <div class="grouplabel reveal">Category budgets</div>
-            <div class="reveal" id="goalList"></div>
+            <button class="grouplabel collapser reveal" id="goalToggle" aria-expanded="false">Category budgets<span class="chev" id="goalChev">▸</span></button>
+            <div class="reveal collapsible" id="goalList"></div>
 
             <div class="grouplabel reveal">Left</div>
             <div class="card reveal">
@@ -809,6 +814,13 @@
   document.getElementById("formClose").addEventListener("click",closeForm);
   document.getElementById("goalCard").addEventListener("click",()=>navTo("budget"));
   document.getElementById("topTitle").addEventListener("click",()=>navTo("home"));
+
+  // 카테고리 목표 접기/펼치기
+  document.getElementById("goalToggle").addEventListener("click",()=>{
+    const t=document.getElementById("goalToggle"),l=document.getElementById("goalList");
+    const open=t.getAttribute("aria-expanded")!=="true";
+    t.setAttribute("aria-expanded",open);l.classList.toggle("open",open);
+  });
 
   /* month selector */
   function updateMonthUI(){document.getElementById("monthLabel").textContent=MONTHS[curMonth];document.getElementById("monthRange").textContent=String(curYear);}
