@@ -180,6 +180,16 @@ def make_codef() -> Codef:
     return codef
 
 
+def _as_dict(res):
+    """easycodefpy는 JSON 문자열을 반환 → dict로 변환."""
+    if isinstance(res, str):
+        try:
+            return json.loads(res)
+        except Exception:
+            return {}
+    return res or {}
+
+
 def is_two_way_needed(res: dict) -> bool:
     """CF-03002 = 추가(간편)인증 필요."""
     code = (res.get("result") or {}).get("code")
@@ -206,7 +216,7 @@ def request_with_simple_auth(codef: Codef, url: str, base_param: dict) -> dict:
     3) twoWayInfo + simpleAuth=1 로 재요청 → 데이터 수신
     (CODEF 안내: 최대 3회 재시도 가능)
     """
-    res = codef.request_product(url, SERVICE, dict(base_param))
+    res = _as_dict(codef.request_product(url, SERVICE, dict(base_param)))
 
     if not is_two_way_needed(res):
         return res
@@ -224,7 +234,7 @@ def request_with_simple_auth(codef: Codef, url: str, base_param: dict) -> dict:
                 "twoWayInfo": two_way,
             }
         )
-        res = codef.request_product(url, SERVICE, retry_param)
+        res = _as_dict(codef.request_product(url, SERVICE, retry_param))
         if not is_two_way_needed(res):
             return res
         print("   아직 승인이 확인되지 않았어요. 폰에서 승인했는지 확인 후 다시 Enter.")
@@ -255,7 +265,7 @@ def ensure_connected_id(codef: Codef, target: dict) -> str | None:
     param = {"accountList": [account]}
 
     # 계좌 등록도 간편인증 2-way가 걸릴 수 있어 동일 패턴으로 처리
-    res = codef.create_account(SERVICE, param)
+    res = _as_dict(codef.create_account(SERVICE, param))
     if is_two_way_needed(res):
         two_way = extract_two_way_info(res)
         print("\n📱 계좌 등록(간편인증) 승인이 폰으로 전송됐습니다.")
@@ -263,7 +273,7 @@ def ensure_connected_id(codef: Codef, target: dict) -> str | None:
             input(f"   [{attempt}/3] 승인 완료 후 Enter ▶ ")
             retry = {"accountList": [account], "is2Way": True,
                      "simpleAuth": "1", "twoWayInfo": two_way}
-            res = codef.create_account(SERVICE, retry)
+            res = _as_dict(codef.create_account(SERVICE, retry))
             if not is_two_way_needed(res):
                 break
 
