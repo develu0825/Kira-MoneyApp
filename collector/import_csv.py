@@ -32,6 +32,12 @@ except Exception:
 
 HERE = Path(__file__).parent
 DB_PATH = HERE / "money.db"
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(HERE / ".env")
+except ImportError:
+    pass
 DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
 
 # 컬럼 자동 매칭용 키워드 (은행마다 이름이 다름)
@@ -68,15 +74,50 @@ def _to_int(v) -> int:
     return int(s) if s and s not in ("-", "") else 0
 
 
+def _open_excel_bytes(path: str):
+    """엑셀 파일 바이트 반환. 암호화(카뱅 등)면 암호로 복호화. 구형 .xls면 그대로."""
+    import io
+    with open(path, "rb") as f:
+        head = f.read(8)
+    # OLE2(d0cf11e0) = 구형 xls 또는 암호화 xlsx
+    if head[:4] == b"\xd0\xcf\x11\xe0":
+        try:
+            import msoffcrypto
+        except ImportError:
+            sys.exit("암호화 엑셀을 열려면:  pip install msoffcrypto-tool")
+        with open(path, "rb") as f:
+            office = msoffcrypto.OfficeFile(f)
+            if not office.is_encrypted():
+                return None  # 암호화 아닌 구형 xls → 호출측에서 xlrd 처리
+            pw = (os.environ.get("XLSX_PW")
+                  or os.environ.get("MY_BIRTH", "")
+                  or input("엑셀 암호 (보통 생년월일 6자리): ").strip())
+            buf = io.BytesIO()
+            try:
+                office.load_key(password=pw)
+                office.decrypt(buf)
+            except Exception:
+                sys.exit("❌ 엑셀 암호가 틀렸어요. 카뱅 내보내기 때 설정한 암호(보통 생년월일 6자리)로 다시 시도하세요.\n"
+                         "   예:  python import_csv.py 파일.xlsx --pw 900101")
+            buf.seek(0)
+            return buf
+    return b""  # 일반 xlsx (zip)
+
+
 def _read_rows(path: str):
     """CSV 또는 XLSX에서 (헤더, 행리스트) 읽기. 헤더가 몇 줄 아래 있어도 찾아냄."""
     ext = Path(path).suffix.lower()
     if ext in (".xlsx", ".xls"):
-        try:
-            from openpyxl import load_workbook
-        except ImportError:
-            sys.exit("엑셀 읽기에 openpyxl 필요:  pip install openpyxl\n(또는 앱에서 CSV로 내보내기)")
-        wb = load_workbook(path, read_only=True, data_only=True)
+        from openpyxl import load_workbook
+        src = _open_excel_bytes(path)
+        if src is None:
+            # 진짜 구형 .xls (암호화 아님)
+            import xlrd
+            wb_x = xlrd.open_workbook(path)
+            sh = wb_x.sheet_by_index(0)
+            rows = [sh.row_values(i) for i in range(sh.nrows)]
+            return _rows_after_header(rows)
+        wb = load_workbook(src if src else path, read_only=True, data_only=True)
         ws = wb.active
         rows = [[("" if c is None else c) for c in r] for r in ws.iter_rows(values_only=True)]
     else:
@@ -92,7 +133,11 @@ def _read_rows(path: str):
             sys.exit(f"파일 인코딩을 못 읽었어요: {path}")
         rows = raw
 
-    # 헤더 행 찾기: COLS 키워드가 2개 이상 들어있는 첫 줄
+    return _rows_after_header(rows)
+
+
+def _rows_after_header(rows):
+    """헤더 행(COLS 키워드가 가장 많은 줄)을 찾아 (헤더, 데이터행) 반환."""
     header_idx = 0
     best = 0
     for i, r in enumerate(rows[:15]):
@@ -193,10 +238,24 @@ def import_file(conn, path, bank):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    # 플래그와 그 값을 제외한 나머지 = 파일 경로
+    argv = sys.argv[1:]
+    args, skip = [], False
+    for i, a in enumerate(argv):
+        if skip:
+            skip = False
+            continue
+        if a in ("--bank", "--pw"):
+            skip = True
+            continue
+        if a.startswith("--"):
+            continue
+        args.append(a)
     bank = "은행"
     if "--bank" in sys.argv:
         bank = sys.argv[sys.argv.index("--bank") + 1]
+    if "--pw" in sys.argv:
+        os.environ["XLSX_PW"] = sys.argv[sys.argv.index("--pw") + 1]
     if not args:
         sys.exit("사용법: python import_csv.py 거래내역.csv [--bank 카카오뱅크]")
 

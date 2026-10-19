@@ -1,4 +1,8 @@
 # Kira collector dependencies
-easycodefpy        # 공식 CODEF SDK (자격증명 RSA 암호화 처리)
-cryptography       # 데이터 AES-256-GCM 암호화 (publish.py)
-python-dotenv      # .env 파일 자동 로드
+easycodefpy          # 공식 CODEF SDK (자격증명 RSA 암호화 처리)
+cryptography         # 데이터 AES-256-GCM 암호화 (publish.py)
+python-dotenv        # .env 파일 자동 로드
+# --- CSV/엑셀 가져오기 (import_csv.py) ---
+openpyxl             # xlsx 읽기
+xlrd                 # 구형 xls 읽기
+msoffcrypto-tool     # 암호화된 엑셀(카뱅 등) 복호화
