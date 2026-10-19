@@ -74,11 +74,13 @@ def _accounts(*env_keys: str) -> list:
 
 # 간편인증 사용자 정보 (기관/간편인증수단별로 필요한 키가 다름 → 문서 확인)
 _AUTH = {
-    "loginType": "1",        # ★ 간편인증 코드값은 문서 확인 (기관별 상이)
-    "loginTypeLevel": "1",   # ★ 간편인증 수단 (문서 확인)
-    "userName": os.environ.get("MY_NAME", "홍길동"),
-    "birthDate": os.environ.get("MY_BIRTH", "900101"),  # YYMMDD
-    "phoneNo": os.environ.get("MY_PHONE", "01000000000"),
+    "loginType": os.environ.get("LOGIN_TYPE", "5"),             # 5 = 간편인증 (안되면 .env에 LOGIN_TYPE=6 시도)
+    "loginTypeLevel": os.environ.get("SIMPLE_AUTH_LEVEL", "1"),  # 1=카카오톡,2=페이코,3=삼성패스,4=KB,5=PASS,6=네이버,7=신한,8=토스
+    "userName": os.environ.get("MY_NAME", ""),
+    "phoneNo": os.environ.get("MY_PHONE", ""),
+    "identity": os.environ.get("MY_BIRTH", ""),                 # 생년월일 YYMMDD (또는 주민번호)
+    "telecom": os.environ.get("TELECOM", ""),                   # PASS(5) 간편인증일 때만: 0=SKT,1=KT,2=LGU+
+    "id": "",
 }
 
 # 은행마다 계좌 여러 개 가능 (가상계좌 포함) — .env에 쉼표로 나열: KAKAO_ACCOUNTS=111,222,가상계좌번호
