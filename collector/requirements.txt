@@ -1,0 +1,3 @@
+# Kira collector dependencies
+# Official CODEF Python SDK (handles RSA encryption of credentials)
+easycodefpy
