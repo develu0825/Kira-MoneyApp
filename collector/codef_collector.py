@@ -112,8 +112,12 @@ TARGETS = [
 MY_ACCOUNTS = {a for t in TARGETS for a in t["accounts"]}
 MY_ACCOUNT_NAMES = {t["nickname"] for t in TARGETS}
 
-# 수시입출 거래내역 상품 URL (★ 실제 경로/파라미터는 문서에서 확인)
-TRANSACTION_URL = "/v1/kr/bank/p/account/transaction-list"
+# 고객구분: P=개인(기본), B=기업. 콘솔에서 활성화한 상품에 맞춰 .env의 CLIENT_TYPE로 전환.
+CLIENT_TYPE = os.environ.get("CLIENT_TYPE", "P").strip().upper()
+_CT = "p" if CLIENT_TYPE == "P" else "b"   # URL 경로용 (p/b)
+
+# 수시입출 거래내역 상품 URL (CLIENT_TYPE에 따라 /p/ 또는 /b/ 자동 선택)
+TRANSACTION_URL = f"/v1/kr/bank/{_CT}/account/transaction-list"
 
 # 조회 기간: 최근 N일 (매일 돌리면 중복은 UPSERT로 걸러짐)
 LOOKBACK_DAYS = 14
@@ -277,7 +281,7 @@ def ensure_connected_id(codef: Codef, target: dict) -> str | None:
     account = {
         "countryCode": "KR",
         "businessType": "BK",
-        "clientType": "P",
+        "clientType": CLIENT_TYPE,
         "organization": target["organization"],
         **target["auth"],
     }
