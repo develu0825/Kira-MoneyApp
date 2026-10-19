@@ -208,6 +208,9 @@
   .collapser[aria-expanded="true"] .chev{transform:rotate(90deg);}
   .collapsible{overflow:hidden;max-height:0;opacity:0;transition:max-height .34s var(--ease),opacity .25s var(--ease);}
   .collapsible.open{max-height:2000px;opacity:1;}
+  .more-btn{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:5px;padding:16px 0 2px;}
+  .more-btn .chev{font-size:11px;transition:transform .25s var(--ease);}
+  .more-btn[aria-expanded="true"] .chev{transform:rotate(90deg);}
 
   .sheet-backdrop{position:absolute;inset:0;background:rgba(10,10,9,.3);opacity:0;pointer-events:none;transition:opacity .34s var(--ease);z-index:20;}
   .sheet-backdrop.open{opacity:1;pointer-events:auto;}
@@ -442,8 +445,11 @@
         <div class="sheet-cats" id="sh-cats"></div>
         <div class="sheet-label">Tags <span style="text-transform:none;letter-spacing:0;color:var(--faint);font-weight:600">· 중복 가능</span></div>
         <div class="sheet-cats" id="sh-tags"></div>
-        <div class="field" id="sh-settle-wrap" style="margin-top:18px"><label>정산받은 금액 <span style="color:var(--faint);font-weight:600">· 여러 명이 나눠낸 경우</span></label><input id="sh-settle" type="text" inputmode="numeric" placeholder="0"><div class="kwon" id="sh-net"></div></div>
-        <div class="field" style="margin-top:14px"><label>메모</label><input id="sh-memo" type="text" placeholder="예: 친구들 저녁 N빵"></div>
+        <button class="more-btn" id="sh-more" aria-expanded="false">더보기<span class="chev">▸</span></button>
+        <div class="collapsible" id="sh-more-wrap">
+          <div class="field" id="sh-settle-wrap" style="margin-top:12px"><label>정산받은 금액 <span style="color:var(--faint);font-weight:600">· 여러 명이 나눠낸 경우</span></label><input id="sh-settle" type="text" inputmode="numeric" placeholder="0"><div class="kwon" id="sh-net"></div></div>
+          <div class="field" style="margin-top:14px"><label>메모</label><input id="sh-memo" type="text" placeholder="예: 친구들 저녁 N빵"></div>
+        </div>
         <button class="sheet-primary" id="sh-toggle"></button>
         <button class="sheet-close" id="sh-close">Close</button>
       </div>
@@ -857,12 +863,18 @@
     // 메모
     const mi=document.getElementById("sh-memo");mi.value=t.userMemo||"";
     mi.oninput=()=>{TX[i].userMemo=mi.value;saveOver(TX[i]);};
+    // 더보기: 정산/메모가 이미 있으면 펼쳐서, 없으면 접어서 열기
+    const more=document.getElementById("sh-more"),moreWrap=document.getElementById("sh-more-wrap");
+    const hasExtra=(t.reimbursed>0)||!!t.userMemo;
+    more.setAttribute("aria-expanded",hasExtra);moreWrap.classList.toggle("open",hasExtra);
     const tg=document.getElementById("sh-toggle");tg.textContent=t.excluded?"소비로 되돌리기":"소비 아님으로 빼기";tg.classList.toggle("undo",!!t.excluded);
     backdrop.classList.add("open");sheet.classList.add("open");
   }
   function closeSheet(){backdrop.classList.remove("open");sheet.classList.remove("open");}
   backdrop.addEventListener("click",closeSheet);
   document.getElementById("sh-close").addEventListener("click",closeSheet);
+  document.getElementById("sh-more").addEventListener("click",()=>{const m=document.getElementById("sh-more"),w=document.getElementById("sh-more-wrap");
+    const open=m.getAttribute("aria-expanded")!=="true";m.setAttribute("aria-expanded",open);w.classList.toggle("open",open);});
   document.getElementById("sh-toggle").addEventListener("click",()=>{if(sheetIdx==null)return;TX[sheetIdx].excluded=!TX[sheetIdx].excluded;saveOver(TX[sheetIdx]);closeSheet();setTimeout(()=>renderList(false),reduceMotion?0:260);});
 
   const formSheet=document.getElementById("formSheet"),fbackdrop=document.getElementById("fbackdrop");
