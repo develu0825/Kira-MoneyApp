@@ -40,6 +40,12 @@ try:
 except ImportError:
     pass
 
+try:
+    from categorize import guess_category
+except ImportError:
+    def guess_category(_name):
+        return None
+
 
 # =====================================================================
 # CONFIG  — 여기 값만 본인 환경/기관 스펙에 맞게 채우면 됨
@@ -170,11 +176,11 @@ def upsert_transaction(conn: sqlite3.Connection, row: dict) -> None:
         INSERT INTO transactions (
             tx_key, organization, account, datetime,
             in_amount, out_amount, balance, counterparty, memo_bank,
-            is_self_transfer, raw_json, created_at
+            category, is_self_transfer, raw_json, created_at
         ) VALUES (
             :tx_key, :organization, :account, :datetime,
             :in_amount, :out_amount, :balance, :counterparty, :memo_bank,
-            :is_self_transfer, :raw_json, :created_at
+            :category, :is_self_transfer, :raw_json, :created_at
         )
         ON CONFLICT(tx_key) DO UPDATE SET
             in_amount        = excluded.in_amount,
@@ -182,6 +188,7 @@ def upsert_transaction(conn: sqlite3.Connection, row: dict) -> None:
             balance          = excluded.balance,
             counterparty     = excluded.counterparty,
             memo_bank        = excluded.memo_bank,
+            category         = COALESCE(transactions.category, excluded.category),
             is_self_transfer = excluded.is_self_transfer,
             raw_json         = excluded.raw_json
         """,
@@ -384,6 +391,7 @@ def parse_and_store(conn: sqlite3.Connection, target: dict, account: str, res: d
             "balance": balance,
             "counterparty": counterparty,
             "memo_bank": memo_bank,
+            "category": guess_category(counterparty) if out_amt > 0 else None,
             "is_self_transfer": 1 if guess_self_transfer(counterparty) else 0,
             "raw_json": json.dumps(t, ensure_ascii=False),
             "created_at": now,

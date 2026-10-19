@@ -38,6 +38,12 @@ try:
     load_dotenv(HERE / ".env")
 except ImportError:
     pass
+
+try:
+    from categorize import guess_category
+except ImportError:
+    def guess_category(_name):
+        return None
 DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
 
 # 컬럼 자동 매칭용 키워드 (은행마다 이름이 다름)
@@ -222,15 +228,17 @@ def import_file(conn, path, bank):
         desc = str(cell(c_desc)).strip()
         iso = when.isoformat()
         tx_key = f"csv|{bank}|{iso}|{in_amt}|{out_amt}|{balance}|{i}"
+        category = guess_category(desc) if out_amt > 0 else None   # 지출만 자동분류
         conn.execute(
             """INSERT INTO transactions
                (tx_key, organization, account, datetime, in_amount, out_amount, balance,
-                counterparty, memo_bank, is_self_transfer, raw_json, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                counterparty, memo_bank, category, is_self_transfer, raw_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(tx_key) DO UPDATE SET
                  in_amount=excluded.in_amount, out_amount=excluded.out_amount,
-                 balance=excluded.balance, counterparty=excluded.counterparty""",
-            (tx_key, bank, "", iso, in_amt, out_amt, balance, desc, "", 0, "", now),
+                 balance=excluded.balance, counterparty=excluded.counterparty,
+                 category=COALESCE(transactions.category, excluded.category)""",
+            (tx_key, bank, "", iso, in_amt, out_amt, balance, desc, "", category, 0, "", now),
         )
         n += 1
     conn.commit()
