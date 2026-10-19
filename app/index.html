@@ -99,9 +99,12 @@
   .sec-pad{padding:16px 22px;}
   .pagetitle{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px;}
 
-  .monthrow{display:flex;align-items:baseline;gap:10px;}
-  .monthrow h1{font-size:26px;line-height:1;margin:0;font-weight:700;letter-spacing:-.02em;}
-  .monthrow .range{font-size:13px;color:var(--muted);}
+  .monthrow{display:flex;align-items:center;gap:6px;}
+  .monthrow h1{font-size:26px;line-height:1;margin:0;font-weight:700;letter-spacing:-.02em;min-width:66px;text-align:center;}
+  .monthrow .range{font-size:13px;color:var(--muted);margin-left:6px;}
+  .mnav{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:24px;font-weight:600;color:var(--muted);padding:2px 6px;line-height:1;border-radius:8px;transition:color .15s var(--ease),background .15s var(--ease);}
+  .mnav:hover{color:var(--ink);background:var(--track);}
+  .mnav:active{transform:scale(.9);}
   .toggle{position:relative;display:inline-flex;gap:3px;margin-top:14px;padding:3px;background:var(--track);border-radius:11px;border:1px solid var(--line);}
   .tog-ind{position:absolute;left:0;top:3px;bottom:3px;width:0;border-radius:8px;background:var(--paper);box-shadow:0 1px 2px rgba(0,0,0,.1);z-index:0;transform:translateX(3px);transition:transform .34s var(--ease),width .34s var(--ease);}
   .toggle button{position:relative;z-index:1;appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:14px;font-weight:600;color:var(--muted);padding:7px 14px;border-radius:8px;transition:color .25s var(--ease);}
@@ -276,7 +279,12 @@
         <!-- HOME -->
         <section class="view active" data-view="home">
           <div class="sec-pad">
-            <div class="monthrow"><h1>Oct</h1><span class="range">10.01 – 10.19</span></div>
+            <div class="monthrow">
+              <button class="mnav" id="prevM" aria-label="이전 달">‹</button>
+              <h1 id="monthLabel">Oct</h1>
+              <button class="mnav" id="nextM" aria-label="다음 달">›</button>
+              <span class="range" id="monthRange">2026</span>
+            </div>
             <div class="toggle" role="group" aria-label="View">
               <span class="tog-ind" id="togInd"></span>
               <button id="btn-real" class="wm" aria-pressed="true">Kira</button>
@@ -472,6 +480,12 @@
   let mode="real",lastSpend=0,current="home";
   const views=document.getElementById("views"),listEl=document.getElementById("list");
 
+  // ----- month selection -----
+  const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let curMonth=9, curYear=2026;            // October 2026
+  const M=()=>String(curMonth+1).padStart(2,"0");
+  const inM=t=>!!(t&&t.date&&t.date.split(".")[0]===M());
+
   function cascade(nodes){
     if(reduceMotion){nodes.forEach(n=>{n.style.opacity="1";n.style.animationDelay="0ms";});return;}
     nodes.forEach((n,i)=>{n.classList.remove("go");n.style.opacity="";n.style.animationDelay=(i*55)+"ms";});
@@ -479,19 +493,19 @@
     nodes.forEach(n=>n.classList.add("go"));
   }
 
-  function getSpend(){let s=0;TX.forEach(t=>{if(t.kind!=="income"&&!t.excluded)s+=t.out||0;});return s;}
-  function incomeTotal(){return INCOME.reduce((s,x)=>s+x.amount,0);}
+  function getSpend(){let s=0;TX.forEach(t=>{if(t.kind!=="income"&&!t.excluded&&inM(t))s+=t.out||0;});return s;}
+  function incomeTotal(){return INCOME.filter(inM).reduce((s,x)=>s+x.amount,0);}
 
   function renderList(animate){
     listEl.innerHTML="";
     const groups=[];let cur=null;
-    TX.forEach((t,i)=>{if(!cur||cur.date!==t.date){cur={date:t.date,dow:t.dow,items:[]};groups.push(cur);}cur.items.push({...t,_i:i});});
+    TX.forEach((t,i)=>{if(!inM(t))return;if(!cur||cur.date!==t.date){cur={date:t.date,dow:t.dow,items:[]};groups.push(cur);}cur.items.push({...t,_i:i});});
     groups.forEach(g=>{
       const vis=g.items.filter(t=>mode==="all"?true:!(t.excluded||t.kind==="income"));
       if(!vis.length)return;
       const head=document.createElement("div");head.className="dayhead reveal";
       const ds=g.items.filter(t=>t.kind!=="income"&&!t.excluded).reduce((s,t)=>s+(t.out||0),0);
-      head.innerHTML=`<span>10월 ${g.date.split(".")[1]}일 (${g.dow})</span><span class="dsum">${ds?("-"+fmt(ds)):""}</span>`;
+      head.innerHTML=`<span>${g.date.split(".")[0]}월 ${g.date.split(".")[1]}일 (${g.dow})</span><span class="dsum">${ds?("-"+fmt(ds)):""}</span>`;
       listEl.appendChild(head);
       vis.forEach(t=>listEl.appendChild(rowEl(t)));
     });
@@ -519,7 +533,7 @@
   }
   function recompute(skip){
     let out=0,spend=0,self=0,loan=0;
-    TX.forEach(t=>{if(t.kind==="income")return;out+=t.out||0;if(t.excluded){if(t.kind==="self")self+=t.out;else loan+=t.out;}else spend+=t.out||0;});
+    TX.forEach(t=>{if(t.kind==="income"||!inM(t))return;out+=t.out||0;if(t.excluded){if(t.kind==="self")self+=t.out;else loan+=t.out;}else spend+=t.out||0;});
     const shown=mode==="all"?out:spend;  // Kira=진짜 소비, All=총 출금
     animateNumber(document.getElementById("hero-spend"),lastSpend,shown,skip);lastSpend=shown;
     document.getElementById("hero-out").textContent="₩ "+Math.round(out).toLocaleString("ko-KR");
@@ -559,7 +573,7 @@
 
   function overallGoal(){return Object.entries(GOALS).filter(([k])=>k!=="데이트").reduce((s,[,v])=>s+v,0);}
   function spendForGoal(cat){
-    let s=0;TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out)return;
+    let s=0;TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out||!inM(t))return;
       if(cat==="데이트"){if(t.isDate)s+=t.out;}else if((t.cat||"기타")===cat)s+=t.out;});
     return s;}
   function updateGoalUI(){
@@ -587,7 +601,7 @@
   function renderBudget(){
     const il=document.getElementById("incList");il.innerHTML="";
     INCOME.forEach(x=>{const r=document.createElement("div");r.className="lent-row";
-      r.innerHTML=`<div class="mid"><div class="nm">${x.name}</div><div class="dt">10월 ${x.date.split(".")[1]}일</div></div><span class="amt" style="color:var(--income)">+${fmt(x.amount)}</span>`;
+      r.innerHTML=`<div class="mid"><div class="nm">${x.name}</div><div class="dt">${x.date.split(".")[0]}월 ${x.date.split(".")[1]}일</div></div><span class="amt" style="color:var(--income)">+${fmt(x.amount)}</span>`;
       il.appendChild(r);});
     renderGoals();
     updateGoalUI();
@@ -599,7 +613,7 @@
 
   function renderStats(){
     const agg={};
-    TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out)return;agg[t.cat||"기타"]=(agg[t.cat||"기타"]||0)+t.out;});
+    TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out||!inM(t))return;agg[t.cat||"기타"]=(agg[t.cat||"기타"]||0)+t.out;});
     const rows=Object.entries(agg).sort((a,b)=>b[1]-a[1]);
     const total=rows.reduce((s,r)=>s+r[1],0)||1;
     countTo(document.getElementById("statTotal"),total,650);
@@ -625,7 +639,7 @@
     const el=document.getElementById("lentList");el.innerHTML="";
     LENT.forEach((l,i)=>{
       const r=document.createElement("div");r.className="lent-row"+(l.repaid?" done":"");
-      r.innerHTML=`<div class="mid"><div class="nm">${l.name}</div><div class="dt">10월 ${l.date.split(".")[1]}일 대여</div></div><span class="amt">${fmt(l.amount)}</span><button class="pillbtn ${l.repaid?"done":""}">${l.repaid?"Repaid ✓":"Repaid"}</button>`;
+      r.innerHTML=`<div class="mid"><div class="nm">${l.name}</div><div class="dt">${l.date.split(".")[0]}월 ${l.date.split(".")[1]}일 대여</div></div><span class="amt">${fmt(l.amount)}</span><button class="pillbtn ${l.repaid?"done":""}">${l.repaid?"Repaid ✓":"Repaid"}</button>`;
       const lb=r.querySelector(".pillbtn");
       lb.addEventListener("click",()=>{lb.classList.add("popped");LENT[i].repaid=!LENT[i].repaid;setTimeout(()=>renderLent(),reduceMotion?0:280);});
       el.appendChild(r);
@@ -667,7 +681,7 @@
   function openSheet(i){
     sheetIdx=i;const t=TX[i];
     document.getElementById("sh-name").textContent=t.name;
-    document.getElementById("sh-time").textContent=`10월 ${t.date.split(".")[1]}일 · ${t.time}`;
+    document.getElementById("sh-time").textContent=`${t.date.split(".")[0]}월 ${t.date.split(".")[1]}일 · ${t.time}`;
     document.getElementById("sh-amt").textContent=(t.kind==="income"?"+":"-")+fmt(t.out||t.in);
     const ce=document.getElementById("sh-cats");ce.innerHTML="";
     CATS.forEach(c=>{const cb=document.createElement("button");cb.className="catbtn";cb.textContent=c;cb.setAttribute("aria-pressed",t.cat===c);
@@ -700,6 +714,12 @@
   document.getElementById("formClose").addEventListener("click",closeForm);
   document.getElementById("goalCard").addEventListener("click",()=>navTo("budget"));
   document.getElementById("topTitle").addEventListener("click",()=>navTo("home"));
+
+  /* month selector */
+  function updateMonthUI(){document.getElementById("monthLabel").textContent=MONTHS[curMonth];document.getElementById("monthRange").textContent=String(curYear);}
+  function changeMonth(d){curMonth=(curMonth+d+12)%12;updateMonthUI();if(current==="home")renderList(true);else applyView(current);}
+  document.getElementById("prevM").addEventListener("click",()=>changeMonth(-1));
+  document.getElementById("nextM").addEventListener("click",()=>changeMonth(1));
 
   /* info sheet */
   const infoSheet=document.getElementById("infoSheet"),ibackdrop=document.getElementById("ibackdrop");
