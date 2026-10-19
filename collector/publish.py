@@ -25,6 +25,13 @@ import datetime
 import kira_crypto
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(HERE, ".env"))
+except ImportError:
+    pass
+
 DB = os.environ.get("KIRA_DB", os.path.join(HERE, "money.db"))
 OUT = os.environ.get("KIRA_DATA_OUT", os.path.join(HERE, "..", "app", "data.enc"))
 PASSPHRASE = os.environ.get("KIRA_PASSPHRASE", "")

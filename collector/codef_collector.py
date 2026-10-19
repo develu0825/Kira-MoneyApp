@@ -34,6 +34,12 @@ try:
 except ImportError:  # 일부 버전은 crypto 모듈에 위치
     from easycodefpy.crypto import encrypt_rsa
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
+except ImportError:
+    pass
+
 
 # =====================================================================
 # CONFIG  — 여기 값만 본인 환경/기관 스펙에 맞게 채우면 됨

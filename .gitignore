@@ -1,6 +1,7 @@
 # --- secrets / credentials — NEVER commit ---
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 .connected_id.json
