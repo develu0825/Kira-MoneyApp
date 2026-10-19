@@ -73,14 +73,29 @@ def _accounts(*env_keys: str) -> list:
 
 
 # 간편인증 사용자 정보 (기관/간편인증수단별로 필요한 키가 다름 → 문서 확인)
+def _birth8(b: str) -> str:
+    """YYMMDD(6) → YYYYMMDD(8). CODEF 간편인증은 8자리 생년월일 요구."""
+    b = (b or "").strip()
+    if len(b) == 8:
+        return b
+    if len(b) == 6:
+        yy = int(b[:2])
+        century = "20" if yy <= (dt.date.today().year % 100) else "19"
+        return century + b
+    return b
+
+
+_BIRTH8 = _birth8(os.environ.get("MY_BIRTH", ""))
+
+# 간편인증 계정등록 파라미터 (실제 동작 확인된 스펙)
 _AUTH = {
-    "loginType": os.environ.get("LOGIN_TYPE", "5"),             # 5 = 간편인증 (안되면 .env에 LOGIN_TYPE=6 시도)
-    "loginTypeLevel": os.environ.get("SIMPLE_AUTH_LEVEL", "1"),  # 1=카카오톡,2=페이코,3=삼성패스,4=KB,5=PASS,6=네이버,7=신한,8=토스
+    "loginType": os.environ.get("LOGIN_TYPE", "5"),             # 5 = 간편인증
+    "loginTypeLevel": os.environ.get("SIMPLE_AUTH_LEVEL", "1"),  # 1=카카오톡,5=PASS,6=네이버,8=토스
     "userName": os.environ.get("MY_NAME", ""),
+    "identity": _BIRTH8,     # 생년월일 8자리 YYYYMMDD
+    "birthDate": _BIRTH8,    # identity/birthDate 어느 쪽이 필수인지 불확실 → 둘 다 전송
     "phoneNo": os.environ.get("MY_PHONE", ""),
-    "identity": os.environ.get("MY_BIRTH", ""),                 # 생년월일 YYMMDD (또는 주민번호)
-    "telecom": os.environ.get("TELECOM", ""),                   # PASS(5) 간편인증일 때만: 0=SKT,1=KT,2=LGU+
-    "id": "",
+    "telecom": os.environ.get("TELECOM", ""),                   # PASS(5)일 때만: 0=SKT,1=KT,2=LGU+
 }
 
 # 은행마다 계좌 여러 개 가능 (가상계좌 포함) — .env에 쉼표로 나열: KAKAO_ACCOUNTS=111,222,가상계좌번호
