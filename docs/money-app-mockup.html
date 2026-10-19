@@ -145,7 +145,12 @@
   .tx.excluded .dot{color:var(--faint);}
   .tx.excluded .action{color:var(--accent);border-color:var(--accent-soft);background:var(--accent-soft);}
   .tx.collapsing{max-height:0 !important;padding-top:0;padding-bottom:0;opacity:0;transform:translateX(18px);transition:max-height .34s var(--ease),padding .34s var(--ease),opacity .28s var(--ease),transform .34s var(--ease);pointer-events:none;}
-  .dayhead{position:sticky;top:0;background:var(--paper);z-index:2;padding:16px 22px 6px;font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;transition:background .4s var(--ease);}
+  .dayhead{position:sticky;top:0;background:var(--paper);z-index:2;padding:16px 22px 6px;font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:7px;justify-content:flex-start;transition:background .4s var(--ease);width:100%;border:0;cursor:pointer;font-family:inherit;text-align:left;}
+  .dayhead .dsum{margin-left:auto;}
+  .dayhead .dchev{font-size:10px;transition:transform .25s var(--ease);}
+  .dayhead.closed .dchev{transform:rotate(-90deg);}
+  .day-rows{overflow:hidden;max-height:0;transition:max-height .3s var(--ease);}
+  .day-rows.open{max-height:4000px;}
   .dayhead .dsum{font-variant-numeric:tabular-nums;color:var(--faint);font-weight:600;}
 
   .stat-hero{font-size:34px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px;}
@@ -573,6 +578,7 @@
   let GOAL_OVER={};  // 사용자가 직접 수정한 카테고리만 {cat: 금액}
 
   let mode="real",lastSpend=0,current="home";
+  const collapsedDays=new Set();   // 홈에서 접힌 날짜
   const views=document.getElementById("views"),listEl=document.getElementById("list");
 
   // ----- month selection -----
@@ -595,18 +601,30 @@
     listEl.innerHTML="";
     const groups=[];let cur=null;
     TX.forEach((t,i)=>{if(!inM(t))return;if(!cur||cur.date!==t.date){cur={date:t.date,dow:t.dow,items:[]};groups.push(cur);}cur.items.push({...t,_i:i});});
+    const topNodes=[];
     groups.forEach(g=>{
       const vis=g.items.filter(t=>mode==="all"?true:!(t.excluded||t.kind==="income"));
       if(!vis.length)return;
-      const head=document.createElement("div");head.className="dayhead reveal";
+      const collapsed=collapsedDays.has(g.date);
+      const head=document.createElement("button");head.className="dayhead reveal";
       const ds=g.items.filter(t=>t.kind!=="income"&&!t.excluded).reduce((s,t)=>s+(t.out||0),0);
-      head.innerHTML=`<span>${g.date.split(".")[0]}월 ${g.date.split(".")[1]}일 (${g.dow})</span><span class="dsum">${ds?("-"+fmt(ds)):""}</span>`;
-      listEl.appendChild(head);
-      vis.forEach(t=>listEl.appendChild(rowEl(t)));
+      head.innerHTML=`<span class="dchev">▾</span><span>${g.date.split(".")[0]}월 ${g.date.split(".")[1]}일 (${g.dow})</span><span class="dsum">${ds?("-"+fmt(ds)):""}</span>`;
+      const wrap=document.createElement("div");wrap.className="day-rows"+(collapsed?"":" open");
+      vis.forEach(t=>wrap.appendChild(rowEl(t)));
+      head.classList.toggle("closed",collapsed);
+      head.addEventListener("click",e=>{
+        if(e.target.closest(".action"))return;   // 제외 버튼 클릭은 제외
+        const now=!collapsedDays.has(g.date);
+        if(now)collapsedDays.add(g.date);else collapsedDays.delete(g.date);
+        head.classList.toggle("closed",now);wrap.classList.toggle("open",!now);
+      });
+      listEl.appendChild(head);listEl.appendChild(wrap);
+      topNodes.push(head);
     });
     recompute(true);
-    const nodes=[...listEl.children];
-    if(animate&&!reduceMotion)cascade(nodes);else nodes.forEach(n=>n.style.opacity="1");
+    listEl.querySelectorAll(".tx").forEach(r=>{r.classList.remove("reveal");r.style.opacity="1";});
+    listEl.querySelectorAll(".day-rows").forEach(w=>w.style.opacity="1");
+    if(animate&&!reduceMotion)cascade(topNodes);else topNodes.forEach(n=>{n.classList.remove("reveal");n.style.opacity="1";});
   }
   function rowEl(t){
     const b=document.createElement("button");b.className="tx reveal"+(t.excluded?" excluded":"");b.style.maxHeight="80px";
