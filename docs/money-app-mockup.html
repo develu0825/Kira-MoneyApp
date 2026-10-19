@@ -249,8 +249,6 @@
   .lock input{width:100%;font:inherit;font-size:17px;padding:13px 14px;border-radius:12px;border:1px solid var(--line-strong);background:var(--track);color:var(--ink);margin-top:20px;text-align:center;}
   .lock input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent;}
   .lock .passbtn{width:100%;margin-top:12px;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;}
-  .pin-reset{margin-top:18px;background:transparent;border:0;color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
-  .pin-reset:active{color:var(--ink);}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
@@ -465,7 +463,6 @@
           <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <div class="lock-err" id="lockErr"></div>
           <div class="keypad" id="keypad"></div>
-          <button class="pin-reset" id="pinReset">PIN 재설정</button>
         </div>
       </div>
 
@@ -944,5 +941,4 @@
   // boot
   buildKeypad();
   lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (6자리)");
-  document.getElementById('pinReset').addEventListener('click',()=>{if(confirm('PIN을 재설정할까요? 기존 PIN이 지워집니다.')){LS.removeItem('kira_pin');pinFirst=null;pinBuf="";renderDots();lockErr("");lockTitle("PIN 설정 (6자리)");buildKeypad();}});
 </script>
