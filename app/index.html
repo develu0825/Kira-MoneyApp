@@ -262,6 +262,9 @@
   .lock input{width:100%;font:inherit;font-size:17px;padding:13px 14px;border-radius:12px;border:1px solid var(--line-strong);background:var(--track);color:var(--ink);margin-top:20px;text-align:center;}
   .lock input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent;}
   .lock .passbtn{width:100%;margin-top:12px;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;}
+  .face-btn{margin-top:20px;background:transparent;border:0;color:var(--accent);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;}
+  .face-btn::before{content:"";width:18px;height:18px;border:2px solid var(--accent);border-radius:5px;display:inline-block;}
+  .face-btn:active{opacity:.6;}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
@@ -486,6 +489,7 @@
           <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <div class="lock-err" id="lockErr"></div>
           <div class="keypad" id="keypad"></div>
+          <button class="face-btn" id="faceBtn" style="display:none">Face ID로 잠금 해제</button>
         </div>
       </div>
 
@@ -930,7 +934,9 @@
     const stored=LS.getItem('kira_pin');
     if(!stored){
       if(pinFirst===null){pinFirst=pinBuf;pinBuf="";renderDots();lockTitle("PIN 확인 (다시 입력)");buildKeypad();}
-      else if(pinBuf===pinFirst){LS.setItem('kira_pin',await sha(pinBuf));unlock();}
+      else if(pinBuf===pinFirst){LS.setItem('kira_pin',await sha(pinBuf));
+        if(faceAvailable()&&confirm('Face ID로도 잠금 해제할까요?'))await faceEnroll();
+        unlock();}
       else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (6자리)");buildKeypad();}
     }else if(await sha(pinBuf)===stored){unlock();}
     else{pinBuf="";renderDots();lockErr("PIN이 틀렸어요");buildKeypad();}
@@ -961,9 +967,46 @@
     updateMonthUI();setSync(lastSync);renderBudget();renderLent();applyView("home");
     if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveTogInd);
   }
+  // ===== Face ID (WebAuthn 생체인증) =====
+  const b64u={enc:b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+              dec:s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}};
+  function faceAvailable(){return !!(window.PublicKeyCredential&&navigator.credentials);}
+  async function faceEnroll(){ // PIN 성공 후 1회 등록
+    if(!faceAvailable())return;
+    try{
+      const cred=await navigator.credentials.create({publicKey:{
+        challenge:crypto.getRandomValues(new Uint8Array(32)),
+        rp:{name:"Kira"},
+        user:{id:crypto.getRandomValues(new Uint8Array(16)),name:"kira",displayName:"Kira"},
+        pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},
+        timeout:60000}});
+      LS.setItem('kira_face',b64u.enc(cred.rawId));
+    }catch(e){/* 사용자가 취소 */}
+  }
+  async function faceUnlock(){
+    const id=LS.getItem('kira_face');if(!id||!faceAvailable())return false;
+    try{
+      await navigator.credentials.get({publicKey:{
+        challenge:crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials:[{type:"public-key",id:b64u.dec(id)}],
+        userVerification:"required",timeout:60000}});
+      return true;
+    }catch(e){return false;}
+  }
+
   // boot
   buildKeypad();
   lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (6자리)");
+  // Face ID 버튼: 이미 등록돼 있고 PIN도 설정된 상태면 노출 + 자동 시도
+  (function(){
+    const fb=document.getElementById('faceBtn');
+    if(LS.getItem('kira_pin')&&LS.getItem('kira_face')&&faceAvailable()){
+      fb.style.display='flex';
+      fb.addEventListener('click',async()=>{if(await faceUnlock())unlock();else lockErr("Face ID 실패 — PIN을 입력하세요");});
+      faceUnlock().then(ok=>{if(ok)unlock();});   // 자동으로 한번 띄움
+    }
+  })();
 </script>
 </body>
 </html>
