@@ -95,8 +95,10 @@ _AUTH = {
     "identity": _BIRTH8,     # 생년월일 8자리 YYYYMMDD
     "birthDate": _BIRTH8,    # identity/birthDate 어느 쪽이 필수인지 불확실 → 둘 다 전송
     "phoneNo": os.environ.get("MY_PHONE", ""),
-    "telecom": os.environ.get("TELECOM", ""),                   # PASS(5)일 때만: 0=SKT,1=KT,2=LGU+
 }
+# telecom은 PASS(5) 간편인증일 때만 전송 (카카오톡 등은 보내면 오히려 거부될 수 있음)
+if os.environ.get("TELECOM", "").strip():
+    _AUTH["telecom"] = os.environ.get("TELECOM").strip()       # 0=SKT,1=KT,2=LGU+
 
 # 은행마다 계좌 여러 개 가능 (가상계좌 포함) — .env에 쉼표로 나열: KAKAO_ACCOUNTS=111,222,가상계좌번호
 TARGETS = [
@@ -296,6 +298,14 @@ def ensure_connected_id(codef: Codef, target: dict) -> str | None:
 
     data = res.get("data") or {}
     connected_id = data.get("connectedId")
+    if not connected_id and isinstance(data, dict):
+        # data 안에 successList/errorList 형태로 올 수도 있음
+        for lst in (data.get("successList"), data.get("resultList")):
+            if isinstance(lst, list):
+                for item in lst:
+                    if isinstance(item, dict) and item.get("connectedId"):
+                        connected_id = item["connectedId"]
+                        break
     if connected_id:
         cache[key] = connected_id
         CONNECTED_ID_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2),
@@ -303,6 +313,14 @@ def ensure_connected_id(codef: Codef, target: dict) -> str | None:
         print(f"✅ ConnectedId 발급/저장 완료 ({target['nickname']})")
     else:
         print(f"⚠️ ConnectedId 발급 실패: {res.get('result')}")
+        # 상세 사유 (어떤 필드가 문제인지)
+        d = res.get("data") or {}
+        for lst_name in ("errorList", "failList", "successList", "resultList"):
+            if d.get(lst_name):
+                print(f"   {lst_name}: {json.dumps(d[lst_name], ensure_ascii=False)}")
+        extra = (res.get("result") or {}).get("extraMessage")
+        if extra:
+            print(f"   extraMessage: {extra}")
     return connected_id
 
 
