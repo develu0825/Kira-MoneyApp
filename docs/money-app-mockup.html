@@ -345,21 +345,25 @@
           <div class="sec-pad">
             <h1 class="pagetitle reveal">Budget</h1>
 
-            <div class="grouplabel reveal">Income</div>
-            <div class="card reveal">
-              <span class="kcap">Income</span>
-              <div class="big" id="incTotal">₩3,200,000</div>
-              <div id="incList"></div>
-              <button class="pillbtn" id="addInc" style="margin-top:16px">+ Add income</button>
+            <button class="grouplabel collapser reveal" data-collapse="incWrap" aria-expanded="true">Income<span class="chev">▸</span></button>
+            <div class="collapsible open" id="incWrap">
+              <div class="card">
+                <span class="kcap">Income</span>
+                <div class="big" id="incTotal">₩3,200,000</div>
+                <div id="incList"></div>
+                <button class="pillbtn" id="addInc" style="margin-top:16px">+ Add income</button>
+              </div>
             </div>
 
-            <button class="grouplabel collapser reveal" id="goalToggle" aria-expanded="false">Category budgets<span class="chev" id="goalChev">▸</span></button>
+            <button class="grouplabel collapser reveal" id="goalToggle" data-collapse="goalList" aria-expanded="false">Category budgets<span class="chev">▸</span></button>
             <div class="reveal collapsible" id="goalList"></div>
 
-            <div class="grouplabel reveal">Left</div>
-            <div class="card reveal">
-              <span class="kcap">Left</span>
-              <div class="big" id="leftover">₩3,069,800</div>
+            <button class="grouplabel collapser reveal" data-collapse="leftWrap" aria-expanded="true">Left<span class="chev">▸</span></button>
+            <div class="collapsible open" id="leftWrap">
+              <div class="card">
+                <span class="kcap">Left</span>
+                <div class="big" id="leftover">₩3,069,800</div>
+              </div>
             </div>
           </div>
         </section>
@@ -815,11 +819,14 @@
   document.getElementById("goalCard").addEventListener("click",()=>navTo("budget"));
   document.getElementById("topTitle").addEventListener("click",()=>navTo("home"));
 
-  // 카테고리 목표 접기/펼치기
-  document.getElementById("goalToggle").addEventListener("click",()=>{
-    const t=document.getElementById("goalToggle"),l=document.getElementById("goalList");
-    const open=t.getAttribute("aria-expanded")!=="true";
-    t.setAttribute("aria-expanded",open);l.classList.toggle("open",open);
+  // 섹션 접기/펼치기 (data-collapse로 통일)
+  document.querySelectorAll(".collapser[data-collapse]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const target=document.getElementById(btn.dataset.collapse);
+      const open=btn.getAttribute("aria-expanded")!=="true";
+      btn.setAttribute("aria-expanded",open);
+      if(target)target.classList.toggle("open",open);
+    });
   });
 
   /* month selector */
