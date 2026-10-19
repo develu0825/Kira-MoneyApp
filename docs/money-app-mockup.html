@@ -241,8 +241,11 @@
   .lock-err{font-size:12px;color:var(--danger);font-weight:600;height:16px;margin-bottom:10px;}
   .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;}
   .keypad button{appearance:none;border:0;background:var(--track);cursor:pointer;font:inherit;font-size:24px;font-weight:600;color:var(--ink);height:64px;border-radius:16px;transition:background .12s var(--ease),transform .08s var(--ease);}
-  .keypad button:active{background:var(--accent-soft);transform:scale(.95);}
+  .keypad button:active{background:var(--accent-soft);}
   .keypad button.blank{background:transparent;cursor:default;}
+  .keypad button.kp-fn{font-size:14px;font-weight:600;color:var(--muted);background:transparent;}
+  .keypad button.kp-fn:active{background:var(--track);}
+  .keypad button.flash{background:var(--accent);color:#fff;}
   .lock input{width:100%;font:inherit;font-size:17px;padding:13px 14px;border-radius:12px;border:1px solid var(--line-strong);background:var(--track);color:var(--ink);margin-top:20px;text-align:center;}
   .lock input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent;}
   .lock .passbtn{width:100%;margin-top:12px;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;}
@@ -903,19 +906,29 @@
   async function pinSubmit(){
     const stored=LS.getItem('kira_pin');
     if(!stored){
-      if(pinFirst===null){pinFirst=pinBuf;pinBuf="";renderDots();lockTitle("PIN 확인 (다시 입력)");}
+      if(pinFirst===null){pinFirst=pinBuf;pinBuf="";renderDots();lockTitle("PIN 확인 (다시 입력)");buildKeypad();}
       else if(pinBuf===pinFirst){LS.setItem('kira_pin',await sha(pinBuf));unlock();}
-      else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (6자리)");}
+      else{pinFirst=null;pinBuf="";renderDots();lockErr("일치하지 않아요");lockTitle("PIN 설정 (6자리)");buildKeypad();}
     }else if(await sha(pinBuf)===stored){unlock();}
-    else{pinBuf="";renderDots();lockErr("PIN이 틀렸어요");}
+    else{pinBuf="";renderDots();lockErr("PIN이 틀렸어요");buildKeypad();}
+  }
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+  function flashKeys(real){ // 엿보기 방지: 누른 키 + 랜덤 2개 동시 점멸
+    const btns=[...document.querySelectorAll('#keypad button.kp-num')],pool=btns.filter(b=>b!==real),picks=[real];
+    for(let i=0;i<2&&pool.length;i++)picks.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+    picks.forEach(b=>{b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),180);});
   }
   function buildKeypad(){
     const kp=document.getElementById('keypad');kp.innerHTML="";
-    ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k=>{const b=document.createElement('button');
-      if(k===''){b.className='blank';b.disabled=true;}
-      else{b.textContent=k;b.addEventListener('click',async()=>{lockErr("");
-        if(k==='⌫'){pinBuf=pinBuf.slice(0,-1);renderDots();}
-        else if(pinBuf.length<6){pinBuf+=k;renderDots();if(pinBuf.length===6)await pinSubmit();}});}
+    const digits=shuffle(['0','1','2','3','4','5','6','7','8','9']);   // 매번 랜덤 재배열
+    const dpos=[0,1,2,3,4,5,6,7,8,10],cells=new Array(12).fill(null);
+    dpos.forEach((p,i)=>cells[p]=digits[i]);
+    cells[9]="clear";cells[11]="back";
+    cells.forEach(c=>{const b=document.createElement('button');
+      if(c==="clear"){b.className='kp-fn';b.textContent='전체삭제';b.addEventListener('click',()=>{pinBuf="";renderDots();lockErr("");});}
+      else if(c==="back"){b.className='kp-fn';b.innerHTML='&#9003;';b.addEventListener('click',()=>{pinBuf=pinBuf.slice(0,-1);renderDots();lockErr("");});}
+      else{b.className='kp-num';b.textContent=c;b.addEventListener('click',async()=>{lockErr("");flashKeys(b);
+        if(pinBuf.length<6){pinBuf+=c;renderDots();if(pinBuf.length===6)await pinSubmit();}});}
       kp.appendChild(b);});
   }
   function unlock(){document.getElementById('lockScreen').style.display='none';startApp();}
