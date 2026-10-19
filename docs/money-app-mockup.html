@@ -217,6 +217,17 @@
   .field label{font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
   .field input{width:100%;font:inherit;font-size:17px;font-weight:600;padding:12px 14px;border-radius:12px;border:1px solid var(--line-strong);background:var(--track);color:var(--ink);font-variant-numeric:tabular-nums;}
   .field input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent;}
+  .kwon{font-size:12px;color:var(--accent);font-weight:600;margin-top:6px;min-height:15px;}
+
+  /* swipe-to-reveal (edit / delete) */
+  .swipe{position:relative;overflow:hidden;}
+  .swipe-actions{position:absolute;top:0;right:0;bottom:0;display:flex;}
+  .swipe-actions button{width:58px;border:0;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;}
+  .sw-edit{background:var(--accent);}
+  .sw-del{background:var(--danger);}
+  .swipe-body{position:relative;z-index:1;background:var(--paper);transition:transform .25s var(--ease);}
+  .swipe.open .swipe-body{transform:translateX(-116px);}
+  #lentList .swipe:first-child .lent-row,#incList .swipe:first-child .lent-row{border-top:0;}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
@@ -232,7 +243,7 @@
       <div class="topbar">
         <button class="hamb" id="hamb" aria-label="Menu"><span></span><span></span><span></span></button>
         <h2 id="topTitle" class="wm">Kira</h2>
-        <span class="top-sync">동기화 10.19 08:00</span>
+        <span class="top-sync" id="syncTop">동기화 10.19 08:00</span>
       </div>
 
       <div class="scrim" id="scrim"></div>
@@ -247,7 +258,7 @@
           <button class="navitem" data-view="settings"><span class="ic">⚙&#xFE0E;</span>Settings</button>
         </div>
         <button class="drawer-info" id="infoBtn"><span class="ii">ⓘ</span>값 설명</button>
-        <div class="drawer-foot">매일 자동 동기화 중<br>마지막 2026.10.19 08:00</div>
+        <div class="drawer-foot" id="syncFoot">매일 자동 동기화 중<br>마지막 2026.10.19 08:00</div>
       </nav>
 
       <div class="views" id="views">
@@ -374,7 +385,7 @@
             </div>
             <div class="grouplabel reveal">Data</div>
             <div class="reveal">
-              <div class="setrow"><div class="mid"><div class="t">지금 동기화</div><div class="d">마지막 2026.10.19 08:00</div></div><button class="pillbtn" onclick="toast('동기화 시작 — 폰에서 승인하세요')">Run</button></div>
+              <div class="setrow"><div class="mid"><div class="t">지금 동기화</div><div class="d" id="syncSet">마지막 2026.10.19 08:00</div></div><button class="pillbtn" onclick="toast('동기화 시작 — 폰에서 승인하세요')">Run</button></div>
             </div>
           </div>
         </section>
@@ -431,6 +442,42 @@
   const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const fmt=n=>"₩"+Math.round(n).toLocaleString("ko-KR");
   const CATS=["식비","교통","쇼핑","구독","편의점","의료","기타"];
+
+  // 한글 금액 (예: 150000 → "십오만원")
+  function koreanWon(n){
+    n=Math.floor(Math.abs(n));if(n===0)return "영원";
+    const d=["","일","이","삼","사","오","육","칠","팔","구"],su=["","십","백","천"],bu=["","만","억","조","경"];
+    let res="",gi=0;
+    while(n>0){const g=n%10000;
+      if(g>0){const a=String(g).padStart(4,"0").split("").map(Number);let s="";
+        for(let i=0;i<4;i++){const dig=a[i],pos=3-i;if(dig!==0)s+=((dig===1&&pos>=1)?"":d[dig])+su[pos];}
+        res=s+bu[gi]+(res?" "+res:"");}
+      n=Math.floor(n/10000);gi++;}
+    return res+"원";
+  }
+  const EDIT_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
+  const TRASH_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
+
+  // 동기화 시각 표시 (실제 시각)
+  function setSync(iso){
+    const dt=iso?new Date(iso):new Date();if(isNaN(dt))return;
+    const p=x=>String(x).padStart(2,"0");
+    const short=`${p(dt.getMonth()+1)}.${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+    const full=`${dt.getFullYear()}.${p(dt.getMonth()+1)}.${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+    const a=document.getElementById("syncTop");if(a)a.textContent="동기화 "+short;
+    const b=document.getElementById("syncFoot");if(b)b.innerHTML="매일 자동 동기화 중<br>마지막 "+full;
+    const c=document.getElementById("syncSet");if(c)c.textContent="마지막 "+full;
+  }
+
+  // 스와이프로 수정/삭제 버튼 노출
+  function attachSwipe(sw){
+    const body=sw.querySelector(".swipe-body");let sx=0,dx=0,drag=false;
+    body.addEventListener("touchstart",e=>{sx=e.touches[0].clientX;dx=0;drag=true;body.style.transition="none";},{passive:true});
+    body.addEventListener("touchmove",e=>{if(!drag)return;dx=e.touches[0].clientX-sx;
+      const base=sw.classList.contains("open")?-116:0,tx=Math.max(-116,Math.min(0,base+dx));body.style.transform=`translateX(${tx}px)`;},{passive:true});
+    body.addEventListener("touchend",()=>{if(!drag)return;drag=false;body.style.transition="";body.style.transform="";
+      if(dx<-40)sw.classList.add("open");else if(dx>40)sw.classList.remove("open");},{passive:true});
+  }
 
   const TX=[
     {date:"10.18",dow:"토",time:"20:41",name:"배달의민족",   cat:"식비",  out:23400, kind:"spend"},
@@ -576,16 +623,25 @@
     onSave:v=>{const g=+v.goal;if(g>=0){GOALS[cat]=g;renderGoals();updateGoalUI();toast("저장됐어요");}}});}
   function renderBudget(){
     const il=document.getElementById("incList");il.innerHTML="";
-    INCOME.forEach(x=>{const r=document.createElement("div");r.className="lent-row";
-      r.innerHTML=`<div class="mid"><div class="nm">${x.name}</div><div class="dt">${x.date.split(".")[0]}월 ${x.date.split(".")[1]}일</div></div><span class="amt" style="color:var(--income)">+${fmt(x.amount)}</span>`;
-      il.appendChild(r);});
+    INCOME.forEach((x,i)=>{const sw=document.createElement("div");sw.className="swipe";
+      sw.innerHTML=`<div class="swipe-actions"><button class="sw-edit" aria-label="수정">${EDIT_SVG}</button><button class="sw-del" aria-label="삭제">${TRASH_SVG}</button></div>
+        <div class="swipe-body"><div class="lent-row">
+          <div class="mid"><div class="nm">${x.name}</div><div class="dt">${x.date.split(".")[0]}월 ${x.date.split(".")[1]}일</div></div>
+          <span class="amt" style="color:var(--income)">+${fmt(x.amount)}</span>
+        </div></div>`;
+      sw.querySelector(".sw-edit").addEventListener("click",()=>openIncomeEditForm(i));
+      sw.querySelector(".sw-del").addEventListener("click",()=>{INCOME.splice(i,1);renderBudget();toast("삭제됨");});
+      attachSwipe(sw);il.appendChild(sw);});
     renderGoals();
     updateGoalUI();
     document.getElementById("addInc").onclick=openIncomeForm;
   }
   function openIncomeForm(){openForm({title:"Add income",
     fields:[{key:"name",label:"Name",type:"text",value:"",ph:"예: 용돈"},{key:"amount",label:"Amount (₩)",type:"number",value:"",ph:"0"}],
-    onSave:v=>{const a=+v.amount;if(a>0){INCOME.push({name:v.name||"수입",amount:a,date:"10.19"});renderBudget();toast("추가됐어요");}}});}
+    onSave:v=>{const a=+v.amount;if(a>0){INCOME.push({name:v.name||"수입",amount:a,date:`${M()}.${String(new Date().getDate()).padStart(2,"0")}`});renderBudget();toast("추가됐어요");}}});}
+  function openIncomeEditForm(i){const x=INCOME[i];openForm({title:"수입 수정",
+    fields:[{key:"name",label:"항목",type:"text",value:x.name},{key:"amount",label:"금액 (₩)",type:"number",value:x.amount}],
+    onSave:v=>{x.name=v.name||x.name;const a=+v.amount;if(a>0)x.amount=a;renderBudget();toast("저장됐어요");}});}
 
   function renderStats(){
     const agg={};
@@ -614,16 +670,25 @@
   function renderLent(){
     const el=document.getElementById("lentList");el.innerHTML="";
     LENT.forEach((l,i)=>{
-      const r=document.createElement("div");r.className="lent-row"+(l.repaid?" done":"");
-      r.innerHTML=`<div class="mid"><div class="nm">${l.name}</div><div class="dt">${l.date.split(".")[0]}월 ${l.date.split(".")[1]}일 대여</div></div><span class="amt">${fmt(l.amount)}</span><button class="pillbtn ${l.repaid?"done":""}">${l.repaid?"Repaid ✓":"Repaid"}</button>`;
-      const lb=r.querySelector(".pillbtn");
-      lb.addEventListener("click",()=>{lb.classList.add("popped");LENT[i].repaid=!LENT[i].repaid;setTimeout(()=>renderLent(),reduceMotion?0:280);});
-      el.appendChild(r);
+      const sw=document.createElement("div");sw.className="swipe";
+      sw.innerHTML=`<div class="swipe-actions"><button class="sw-edit" aria-label="수정">${EDIT_SVG}</button><button class="sw-del" aria-label="삭제">${TRASH_SVG}</button></div>
+        <div class="swipe-body"><div class="lent-row${l.repaid?" done":""}">
+          <div class="mid"><div class="nm">${l.name}</div><div class="dt">${l.date.split(".")[0]}월 ${l.date.split(".")[1]}일 대여</div></div>
+          <span class="amt">${fmt(l.amount)}</span>
+          <button class="pillbtn ${l.repaid?"done":""}">${l.repaid?"Repaid ✓":"Repaid"}</button>
+        </div></div>`;
+      sw.querySelector(".pillbtn").addEventListener("click",e=>{const b=e.currentTarget;b.classList.add("popped");LENT[i].repaid=!LENT[i].repaid;setTimeout(()=>renderLent(),reduceMotion?0:280);});
+      sw.querySelector(".sw-edit").addEventListener("click",()=>openLentForm(i));
+      sw.querySelector(".sw-del").addEventListener("click",()=>{LENT.splice(i,1);renderLent();toast("삭제됨");});
+      attachSwipe(sw);el.appendChild(sw);
     });
     const owed=LENT.filter(l=>!l.repaid).reduce((s,l)=>s+l.amount,0);
     document.getElementById("lentTotal").textContent=fmt(owed);
     const badge=document.getElementById("lentBadge");badge.textContent=LENT.filter(l=>!l.repaid).length;badge.style.display=owed?"":"none";
   }
+  function openLentForm(i){const l=LENT[i];openForm({title:"대여 수정",
+    fields:[{key:"name",label:"이름",type:"text",value:l.name},{key:"amount",label:"금액 (₩)",type:"number",value:l.amount}],
+    onSave:v=>{l.name=v.name||l.name;const a=+v.amount;if(a>0)l.amount=a;renderLent();toast("저장됐어요");}});}
 
   const TITLES={home:"Kira",stats:"Stats",budget:"Budget",lent:"Lent",accounts:"Accounts",settings:"Settings"};
   function applyView(name){
@@ -677,11 +742,17 @@
   const formSheet=document.getElementById("formSheet"),fbackdrop=document.getElementById("fbackdrop");
   function openForm(o){
     document.getElementById("formTitle").textContent=o.title;
-    const body=document.getElementById("formBody");body.innerHTML="";const inputs={};
+    const body=document.getElementById("formBody");body.innerHTML="";const inputs={},types={};
     o.fields.forEach(f=>{const w=document.createElement("div");w.className="field";
-      w.innerHTML=`<label>${f.label}</label><input type="${f.type}" value="${f.value}" placeholder="${f.ph||""}" ${f.type==="number"?'inputmode="numeric"':''}>`;
-      body.appendChild(w);inputs[f.key]=w.querySelector("input");});
-    document.getElementById("formSave").onclick=()=>{const v={};for(const k in inputs)v[k]=inputs[k].value;closeForm();o.onSave(v);};
+      const isNum=f.type==="number";
+      const val=(isNum&&f.value!==""&&f.value!=null)?Number(f.value).toLocaleString("ko-KR"):(f.value||"");
+      w.innerHTML=`<label>${f.label}</label><input type="text" value="${val}" placeholder="${f.ph||""}" ${isNum?'inputmode="numeric"':''}>`+(isNum?'<div class="kwon"></div>':'');
+      body.appendChild(w);const inp=w.querySelector("input");inputs[f.key]=inp;types[f.key]=f.type;
+      if(isNum){const hint=w.querySelector(".kwon");
+        const upd=()=>{const g=inp.value.replace(/[^0-9]/g,"");inp.value=g?Number(g).toLocaleString("ko-KR"):"";hint.textContent=g?koreanWon(Number(g)):"";};
+        inp.addEventListener("input",upd);upd();}
+    });
+    document.getElementById("formSave").onclick=()=>{const v={};for(const k in inputs)v[k]=types[k]==="number"?inputs[k].value.replace(/[^0-9]/g,""):inputs[k].value;closeForm();o.onSave(v);};
     fbackdrop.classList.add("open");formSheet.classList.add("open");
     setTimeout(()=>{const first=body.querySelector("input");if(first)first.focus();},320);
   }
@@ -704,6 +775,11 @@
   document.getElementById("infoBtn").addEventListener("click",openInfo);
   ibackdrop.addEventListener("click",closeInfo);
   document.getElementById("infoClose").addEventListener("click",closeInfo);
+  (function(){let sy=0,dy=0,drag=false;const il=infoSheet.querySelector(".infolist");
+    infoSheet.addEventListener("touchstart",e=>{if(il&&il.scrollTop>0){drag=false;return;}sy=e.touches[0].clientY;dy=0;drag=true;infoSheet.style.transition="none";},{passive:true});
+    infoSheet.addEventListener("touchmove",e=>{if(!drag)return;dy=e.touches[0].clientY-sy;if(dy>0)infoSheet.style.transform=`translateY(${dy}px)`;},{passive:true});
+    infoSheet.addEventListener("touchend",()=>{if(!drag)return;drag=false;infoSheet.style.transition="";infoSheet.style.transform="";if(dy>80)closeInfo();},{passive:true});
+  })();
 
   document.querySelectorAll(".qa").forEach(b=>b.addEventListener("click",()=>{
     const a=b.dataset.act;
@@ -723,6 +799,7 @@
   function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.style.opacity=1;el.style.transform="translate(-50%,0)";
     clearTimeout(toastT);toastT=setTimeout(()=>{el.style.opacity=0;el.style.transform="translate(-50%,20px)";},1900);}
 
+  updateMonthUI();setSync();
   renderBudget();renderLent();
   applyView("home");
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveTogInd);
