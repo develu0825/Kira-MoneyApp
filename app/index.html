@@ -444,6 +444,7 @@
             <div class="grouplabel reveal">General</div>
             <div class="reveal">
               <div class="setrow"><div class="mid"><div class="t">월 시작일</div></div><span class="val">매월 1일</span></div>
+              <div class="setrow"><div class="mid"><div class="t">Face ID 잠금</div><div class="d" id="faceHint">켜면 Face ID로 잠금 해제</div></div><button class="switch" aria-checked="false" data-sw="face" id="faceSwitch"></button></div>
               <div class="setrow"><div class="mid"><div class="t">Dark mode</div></div><button class="switch" aria-checked="false" data-sw="dark"></button></div>
             </div>
             <div class="grouplabel reveal">Data</div>
@@ -954,9 +955,23 @@
       else toast("최신 상태예요 · 매일 자동 동기화 중");}
   }));
 
-  document.querySelectorAll(".switch").forEach(sw=>{sw.addEventListener("click",()=>{
+  document.querySelectorAll(".switch").forEach(sw=>{sw.addEventListener("click",async()=>{
+    if(sw.dataset.sw==="face"){
+      const turnOn=sw.getAttribute("aria-checked")!=="true";
+      if(turnOn){
+        if(!faceAvailable()){toast("이 기기는 Face ID(생체인증)를 지원하지 않아요");return;}
+        const ok=await faceEnroll();
+        if(ok){sw.setAttribute("aria-checked",true);toast("Face ID 등록 완료 — 다음부터 Face ID로 열려요");}
+        else toast("Face ID 등록이 취소됐어요");
+      }else{LS.removeItem('kira_face');sw.setAttribute("aria-checked",false);toast("Face ID 잠금 해제");}
+      return;
+    }
     const on=sw.getAttribute("aria-checked")!=="true";sw.setAttribute("aria-checked",on);
     if(sw.dataset.sw==="dark")document.getElementById("screen").setAttribute("data-theme",on?"dark":"");});});
+  // 설정의 Face ID 스위치 상태 반영 (startApp에서 호출 — LS 정의 이후)
+  function initFaceSwitch(){const fs=document.getElementById("faceSwitch");if(!fs)return;
+    fs.setAttribute("aria-checked",!!window.localStorage.getItem('kira_face'));
+    if(!faceAvailable()){const fh=document.getElementById("faceHint");if(fh)fh.textContent="이 기기는 생체인증 미지원";}}
 
   let toastT;
   function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.style.opacity=1;el.style.transform="translate(-50%,0)";
@@ -1057,14 +1072,15 @@
     loadUserState();
     await loadData();
     updateMonthUI();setSync(lastSync);renderBudget();renderLent();applyView("home");
+    initFaceSwitch();
     if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveTogInd);
   }
   // ===== Face ID (WebAuthn 생체인증) =====
   const b64u={enc:b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
               dec:s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}};
   function faceAvailable(){return !!(window.PublicKeyCredential&&navigator.credentials);}
-  async function faceEnroll(){ // PIN 성공 후 1회 등록
-    if(!faceAvailable())return;
+  async function faceEnroll(){ // 생체인증 등록. 성공 true / 실패·취소 false
+    if(!faceAvailable())return false;
     try{
       const cred=await navigator.credentials.create({publicKey:{
         challenge:crypto.getRandomValues(new Uint8Array(32)),
@@ -1074,7 +1090,8 @@
         authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},
         timeout:60000}});
       LS.setItem('kira_face',b64u.enc(cred.rawId));
-    }catch(e){/* 사용자가 취소 */}
+      return true;
+    }catch(e){return false;}
   }
   async function faceUnlock(){
     const id=LS.getItem('kira_face');if(!id||!faceAvailable())return false;
