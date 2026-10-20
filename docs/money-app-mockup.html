@@ -159,6 +159,9 @@
   .goalrow .tag{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px;}
   .goalrow .tag.auto{color:var(--muted);background:var(--track);}
   .cat.tappable{cursor:pointer;}
+  .goal-sep{margin:22px 0 2px;font-size:11px;letter-spacing:.04em;color:var(--faint);font-weight:600;display:flex;align-items:center;gap:8px;}
+  .goal-sep::before{content:"";flex:1;height:1px;background:var(--line);}
+  .goal-sep::after{content:"";flex:1;height:1px;background:var(--line);}
   .cat-top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600;}
   .cat-top .pct{color:var(--muted);font-size:12px;font-weight:600;margin-left:6px;}
   .cat-top .cat-amt{font-variant-numeric:tabular-nums;}
@@ -803,20 +806,27 @@ const TX=[
     const it=document.getElementById("incTotal");if(it)it.textContent=fmt(incomeTotal());
     const lo=document.getElementById("leftover");if(lo)lo.textContent=fmt(incomeTotal()-spend);
   }
+  function goalRowEl(cat){
+    const spent=spendForGoal(cat),goal=goalFor(cat),pct=goal>0?spent/goal:(spent>0?0.99:0);
+    const over=spent>goal&&goal>0,w=Math.min(100,pct*100);
+    const d=document.createElement("div");d.className="cat goalrow";
+    const tag=cat==="데이트"?'<span class="tag">중복</span>':(isAutoGoal(cat)?'<span class="tag auto">자동</span>':'');
+    d.innerHTML=`<div class="cat-top"><span>${cat}${tag}<span class="pct">${Math.round(pct*100)}%</span></span><span class="cat-amt">${fmt(spent)} / ${fmt(goal)}</span></div><div class="track"><div class="bar" style="width:${w}%;background:${over?"var(--danger)":"var(--accent)"}"></div></div>`;
+    d.addEventListener("click",()=>openCatDetail(cat));
+    return d;
+  }
   function renderGoals(){
     const el=document.getElementById("goalList");if(!el)return;el.innerHTML="";
-    // %(지출/목표) 높은 순 정렬
-    const rows=CAT_LIST.map(cat=>{const spent=spendForGoal(cat),goal=goalFor(cat);
-      return {cat,spent,goal,pct:goal>0?spent/goal:(spent>0?99:0)};})
-      .sort((a,b)=>b.pct-a.pct);
-    rows.forEach(({cat,spent,goal,pct})=>{
-      const over=spent>goal&&goal>0,w=Math.min(100,pct*100);
-      const d=document.createElement("div");d.className="cat goalrow";
-      const tag=cat==="데이트"?'<span class="tag">중복</span>':(isAutoGoal(cat)?'<span class="tag auto">자동</span>':'');
-      d.innerHTML=`<div class="cat-top"><span>${cat}${tag}<span class="pct">${Math.round(pct*100)}%</span></span><span class="cat-amt">${fmt(spent)} / ${fmt(goal)}</span></div><div class="track"><div class="bar" style="width:${w}%;background:${over?"var(--danger)":"var(--accent)"}"></div></div>`;
-      d.addEventListener("click",()=>openCatDetail(cat));   // 탭 → 세부 내역
-      el.appendChild(d);
-    });
+    // 일반 카테고리: %(지출/목표) 높은 순. 데이트는 교차 태그라 맨 아래 별도.
+    CAT_LIST.filter(c=>c!=="데이트")
+      .map(cat=>({cat,pct:(g=>g>0?spendForGoal(cat)/g:(spendForGoal(cat)>0?99:0))(goalFor(cat))}))
+      .sort((a,b)=>b.pct-a.pct)
+      .forEach(({cat})=>el.appendChild(goalRowEl(cat)));
+    if(CAT_LIST.includes("데이트")){
+      const div=document.createElement("div");div.className="goal-sep";div.textContent="교차 태그 · 다른 카테고리와 중복";
+      el.appendChild(div);
+      el.appendChild(goalRowEl("데이트"));
+    }
   }
   function openCatGoalForm(cat){openForm({title:`${cat} 목표`,
     fields:[{key:"goal",label:`${cat} 목표 (₩) · 비우면 전월 자동`,type:"number",value:GOAL_OVER[cat]}],
@@ -853,9 +863,8 @@ const TX=[
     const total=rows.reduce((s,r)=>s+r[1],0)||1;
     countTo(document.getElementById("statTotal"),total,650);
     const el=document.getElementById("catList");el.innerHTML="";
+    // 데이트는 다른 카테고리에 이미 포함된 교차 태그라 통계에선 제외(합 100% 유지)
     const list=rows.map(([c,v])=>({c,v,multi:false}));
-    const dateSpent=spendForGoal("데이트");           // 데이트(교차 태그) — 다른 카테고리와 중복
-    if(dateSpent>0)list.push({c:"데이트",v:dateSpent,multi:true});
     list.forEach((row,idx)=>{
       const pct=Math.round(row.v/total*100);
       const d=document.createElement("div");d.className="cat reveal tappable";
