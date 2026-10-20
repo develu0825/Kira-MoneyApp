@@ -31,3 +31,9 @@ Thumbs.db
 
 # 실제 거래 데이터 — 공개 금지 (폰은 별도 비공개 경로로)
 app/data.enc
+
+# 은행 원본 명세서(엑셀/CSV) — 실거래 포함, 공개 금지
+*.xlsx
+*.xls
+*.csv
+docs/kira-icon.html
