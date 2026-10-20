@@ -852,7 +852,8 @@ const TX=[
     }
   }
   function openCatGoalForm(cat){openForm({title:`${cat} 목표`,
-    fields:[{key:"goal",label:`${cat} 목표 (₩) · 비우면 전월 자동`,type:"number",value:GOAL_OVER[cat]}],
+    fields:[{key:"goal",label:`${cat} 목표 (₩) · 비우면 전월 자동`,type:"number",value:GOAL_OVER[cat],
+             ph:Number(goalFor(cat)).toLocaleString("ko-KR")}],
     onSave:v=>{const raw=v.goal.replace(/[^0-9]/g,"");
       if(raw==="")delete GOAL_OVER[cat];      // 비우면 다시 자동(전월 기준)
       else GOAL_OVER[cat]=+raw;
