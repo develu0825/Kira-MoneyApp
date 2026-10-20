@@ -8,7 +8,7 @@
 
 여러 계좌(카카오뱅크·토스)를 한곳에서 — 자기 계좌 이체, 빌려준 돈, 대표로 결제하고 정산받은 돈을 걷어내고 *진짜 소비*만.
 
-[라이브 데모](https://develu0825.github.io/Kira-MoneyApp/app/) · [GitHub](https://github.com/develu0825/Kira-MoneyApp)
+[라이브 데모](https://develu0825.github.io/Kira-MoneyApp/app/) · [GitHub](https://github.com/develu0825/Kira-MoneyApp) · [English](README.en.md)
 
 </div>
 
