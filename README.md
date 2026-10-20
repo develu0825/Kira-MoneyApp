@@ -143,8 +143,8 @@
 혼자 쓰려고 시작했지만, **비슷한 고민을 하는 분**이나 **같이 발전시키고 싶은 분**은 언제든 환영.
 
 - GitHub: [@develu0825](https://github.com/develu0825)
+- Email: **develu0825@gmail.com**
 - 제안·버그·관심 → [Issues](https://github.com/develu0825/Kira-MoneyApp/issues) 에 남겨주세요
-- 연락: _(원하면 이메일/디스코드 등 여기에 추가)_
 
 > 미성년 개발자가 "내가 필요해서" 만든 가계부입니다. 피드백은 큰 힘이 됩니다 🙌
 
