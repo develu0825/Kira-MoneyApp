@@ -267,6 +267,8 @@
   .face-btn{margin-top:20px;background:transparent;border:0;color:var(--accent);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;}
   .face-btn::before{content:"";width:18px;height:18px;border:2px solid var(--accent);border-radius:5px;display:inline-block;}
   .face-btn:active{opacity:.6;}
+  .demo-hint{margin-top:22px;font-size:13px;color:var(--muted);background:var(--track);border-radius:10px;padding:9px 14px;}
+  .demo-hint b{color:var(--accent);font-weight:700;letter-spacing:.06em;}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important;}
@@ -502,6 +504,7 @@
           <div class="lock-dots" id="lockDots"><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <div class="lock-err" id="lockErr"></div>
           <div class="keypad" id="keypad"></div>
+          <div class="demo-hint" id="demoHint" style="display:none">데모 비밀번호 <b>123456</b></div>
           <button class="face-btn" id="faceBtn" style="display:none">Face ID로 잠금 해제</button>
         </div>
       </div>
@@ -1127,6 +1130,16 @@
   // boot
   buildKeypad();
   lockTitle(LS.getItem('kira_pin')?"PIN 입력":"PIN 설정 (6자리)");
+  // 데모 모드: data.enc 없으면 PIN을 123456으로 세팅하고 힌트 표시 (라이브 데모 체험용)
+  (async function(){
+    try{
+      const r=await fetch('data.enc?d='+Date.now(),{method:'HEAD',cache:'no-store'});
+      if(r.ok)return;                 // 실데이터 있으면 데모 아님 → 힌트 숨김
+    }catch(e){}
+    if(!LS.getItem('kira_pin'))LS.setItem('kira_pin',await sha('123456'));
+    lockTitle("PIN 입력");
+    const dh=document.getElementById('demoHint');if(dh)dh.style.display='';
+  })();
   // Face ID 버튼: 이미 등록돼 있고 PIN도 설정된 상태면 노출 + 자동 시도
   (function(){
     const fb=document.getElementById('faceBtn');
