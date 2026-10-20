@@ -28,3 +28,6 @@ reference/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# 실제 거래 데이터 — 공개 금지 (폰은 별도 비공개 경로로)
+app/data.enc
