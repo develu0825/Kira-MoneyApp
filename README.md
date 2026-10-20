@@ -49,13 +49,15 @@
 
 ## 스크린샷
 
-> 아이폰에서 캡처해 `docs/screenshots/`에 넣고 아래 경로를 맞추세요.
-
 <div align="center">
 
-| 홈 · 진짜 소비 | 통계 | 예산 · 자동 목표 | 거래 상세 |
-|---|---|---|---|
-| <img src="docs/screenshots/home.png" width="190"/> | <img src="docs/screenshots/stats.png" width="190"/> | <img src="docs/screenshots/budget.png" width="190"/> | <img src="docs/screenshots/detail.png" width="190"/> |
+| 홈 · 진짜 소비 | 거래 · 자동 필터 | 통계 |
+|---|---|---|
+| <img src="docs/screenshots/home.png" width="230"/> | <img src="docs/screenshots/detail.png" width="230"/> | <img src="docs/screenshots/stats.png" width="230"/> |
+
+| 예산 · 자동 목표 | 빌려준 돈 |
+|---|---|
+| <img src="docs/screenshots/budget.png" width="230"/> | <img src="docs/screenshots/lent.png" width="230"/> |
 
 </div>
 

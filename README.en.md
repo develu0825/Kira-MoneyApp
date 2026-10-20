@@ -49,13 +49,15 @@ The core is a single **"Real / All" toggle** — instantly compare filtered spen
 
 ## Screenshots
 
-> Capture on your iPhone, drop into `docs/screenshots/`, and match the paths below.
-
 <div align="center">
 
-| Home · Real spending | Stats | Budget · Auto targets | Transaction detail |
-|---|---|---|---|
-| <img src="docs/screenshots/home.png" width="190"/> | <img src="docs/screenshots/stats.png" width="190"/> | <img src="docs/screenshots/budget.png" width="190"/> | <img src="docs/screenshots/detail.png" width="190"/> |
+| Home · Real spending | Transactions · auto-filter | Stats |
+|---|---|---|
+| <img src="docs/screenshots/home.png" width="230"/> | <img src="docs/screenshots/detail.png" width="230"/> | <img src="docs/screenshots/stats.png" width="230"/> |
+
+| Budget · Auto targets | Lent |
+|---|---|
+| <img src="docs/screenshots/budget.png" width="230"/> | <img src="docs/screenshots/lent.png" width="230"/> |
 
 </div>
 
