@@ -117,7 +117,7 @@
   .hero>*{position:relative;z-index:1;}
   .hero .label{font-size:15px;color:var(--accent);font-weight:700;line-height:20px;height:20px;overflow:hidden;}
   .hero .label.wm{font-size:15px;}
-  .hero .big{font-size:46px;font-weight:700;letter-spacing:-.03em;line-height:1.02;margin:6px 0 0;font-variant-numeric:tabular-nums;}
+  .hero .big{white-space:nowrap;font-size:46px;font-weight:700;letter-spacing:-.03em;line-height:1.02;margin:6px 0 0;font-variant-numeric:tabular-nums;}
   .hero .big .won{font-size:26px;font-weight:600;color:var(--muted);margin-right:4px;vertical-align:4px;}
   .meta{display:flex;gap:22px;margin-top:16px;}
   .meta div{display:flex;flex-direction:column;gap:3px;}
@@ -166,7 +166,7 @@
   .day-rows.open{max-height:4000px;}
   .dayhead .dsum{font-variant-numeric:tabular-nums;color:var(--faint);font-weight:600;}
 
-  .stat-hero{font-size:34px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px;}
+  .stat-hero{white-space:nowrap;font-size:34px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px;}
   .cat{margin-top:18px;}
   .goalrow{cursor:pointer;}
   .goalrow .tag{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px;}
@@ -183,7 +183,7 @@
 
   .card{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-top:14px;background:var(--paper);transition:background .4s var(--ease),border-color .4s var(--ease);}
   .card .kcap{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700;}
-  .card .big{font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:4px;}
+  .card .big{white-space:nowrap;font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:4px;}
   .lent-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid var(--line);}
   .lent-row:first-child{border-top:0;}
   .lent-row .mid{flex:1;}
@@ -776,10 +776,13 @@ const TX=[
     updateGoalUI();
   }
   function heroHtml(v){return `<span class="won">₩</span>${Math.round(v).toLocaleString("ko-KR")}`;}
+  // 금액이 길면 폰트를 줄여서 잘리지 않게
+  function fitText(el,base){if(!el)return;el.style.fontSize=base+"px";let fs=base,g=0;
+    while(el.scrollWidth>el.clientWidth+1&&fs>16&&g++<40){fs-=1;el.style.fontSize=fs+"px";}}
   function animateNumber(el,from,to,skip){
-    if(reduceMotion||(skip&&from===to)){el.innerHTML=heroHtml(to);return;}
+    if(reduceMotion||(skip&&from===to)){el.innerHTML=heroHtml(to);fitText(el,46);return;}
     const s=performance.now(),d=460;
-    (function f(now){const p=Math.min(1,(now-s)/d),e=1-Math.pow(1-p,3);el.innerHTML=heroHtml(from+(to-from)*e);if(p<1)requestAnimationFrame(f);})(performance.now());
+    (function f(now){const p=Math.min(1,(now-s)/d),e=1-Math.pow(1-p,3);el.innerHTML=heroHtml(from+(to-from)*e);fitText(el,46);if(p<1)requestAnimationFrame(f);})(performance.now());
   }
   document.getElementById("btn-real").addEventListener("click",()=>setMode("real"));
   document.getElementById("btn-all").addEventListener("click",()=>setMode("all"));
@@ -821,8 +824,8 @@ const TX=[
     const b=document.getElementById("goalBar");if(b){b.style.width=w+"%";b.style.background=over?"var(--danger)":"var(--accent)";}
     const pe=document.getElementById("goalPct");if(pe){pe.textContent=Math.round(pct*100)+"%";pe.style.color=over?"var(--danger)":"var(--accent)";}
     const m=document.getElementById("goalMeta");if(m)m.innerHTML=over?`Budget ${fmt(goal)} · <b style="color:var(--danger)">${fmt(spend-goal)} over</b>`:`Budget ${fmt(goal)} · <b>${fmt(goal-spend)} left</b>`;
-    const it=document.getElementById("incTotal");if(it)it.textContent=fmt(incomeTotal());
-    const lo=document.getElementById("leftover");if(lo)lo.textContent=fmt(incomeTotal()-spend);
+    const it=document.getElementById("incTotal");if(it){it.textContent=fmt(incomeTotal());fitText(it,30);}
+    const lo=document.getElementById("leftover");if(lo){lo.textContent=fmt(incomeTotal()-spend);fitText(lo,30);}
   }
   function goalRowEl(cat){
     const spent=spendForGoal(cat),goal=goalFor(cat),pct=goal>0?spent/goal:(spent>0?0.99:0);
@@ -848,7 +851,7 @@ const TX=[
   }
   function openCatGoalForm(cat){openForm({title:`${cat} 목표`,
     fields:[{key:"goal",label:`${cat} 목표 (₩) · 비우면 전월 자동`,type:"number",value:GOAL_OVER[cat],
-             ph:Number(goalFor(cat)).toLocaleString("ko-KR")}],
+             ph:Number(goalFor(cat)).toLocaleString("ko-KR"),required:false}],
     onSave:v=>{const raw=v.goal.replace(/[^0-9]/g,"");
       if(raw==="")delete GOAL_OVER[cat];      // 비우면 다시 자동(전월 기준)
       else GOAL_OVER[cat]=+raw;
@@ -880,7 +883,7 @@ const TX=[
     TX.forEach(t=>{if(t.kind==="income"||t.excluded||!t.out||!inM(t))return;agg[t.cat||"기타"]=(agg[t.cat||"기타"]||0)+netOut(t);});
     const rows=Object.entries(agg).sort((a,b)=>b[1]-a[1]);
     const total=rows.reduce((s,r)=>s+r[1],0)||1;
-    countTo(document.getElementById("statTotal"),total,650);
+    const stEl=document.getElementById("statTotal");countTo(stEl,total,650);setTimeout(()=>fitText(stEl,34),reduceMotion?0:700);
     const el=document.getElementById("catList");el.innerHTML="";
     // 데이트는 다른 카테고리에 이미 포함된 교차 태그라 통계에선 제외(합 100% 유지)
     const list=rows.map(([c,v])=>({c,v,multi:false}));
@@ -915,7 +918,7 @@ const TX=[
       attachSwipe(sw);el.appendChild(sw);
     });
     const owed=LENT.filter(l=>!l.repaid).reduce((s,l)=>s+l.amount,0);
-    document.getElementById("lentTotal").textContent=fmt(owed);
+    const lt=document.getElementById("lentTotal");lt.textContent=fmt(owed);fitText(lt,30);
     const badge=document.getElementById("lentBadge");badge.textContent=LENT.filter(l=>!l.repaid).length;badge.style.display=owed?"":"none";
   }
   function openLentForm(i){const l=LENT[i];openForm({title:"대여 수정",
@@ -998,11 +1001,26 @@ const TX=[
       const val=(isNum&&f.value!==""&&f.value!=null)?Number(f.value).toLocaleString("ko-KR"):(f.value||"");
       w.innerHTML=`<label>${f.label}</label><input type="text" value="${val}" placeholder="${f.ph||""}" ${isNum?'inputmode="numeric"':''}>`+(isNum?'<div class="kwon"></div>':'');
       body.appendChild(w);const inp=w.querySelector("input");inputs[f.key]=inp;types[f.key]=f.type;
-      if(isNum){const hint=w.querySelector(".kwon");
-        const upd=()=>{const g=inp.value.replace(/[^0-9]/g,"");inp.value=g?Number(g).toLocaleString("ko-KR"):"";hint.textContent=g?koreanWon(Number(g)):"";};
+      if(isNum){const hint=w.querySelector(".kwon");const MAX=f.max||100000000;  // 기본 상한 1억
+        const upd=()=>{let g=inp.value.replace(/[^0-9]/g,"");
+          if(g&&Number(g)>MAX){g=String(MAX);hint.style.color="var(--danger)";}else hint.style.color="";
+          inp.value=g?Number(g).toLocaleString("ko-KR"):"";
+          hint.textContent=g?(Number(g)>=MAX?`최대 ${koreanWon(MAX)}`:koreanWon(Number(g))):"";};
         inp.addEventListener("input",upd);upd();}
     });
-    document.getElementById("formSave").onclick=()=>{const v={};for(const k in inputs)v[k]=types[k]==="number"?inputs[k].value.replace(/[^0-9]/g,""):inputs[k].value;closeForm();o.onSave(v);};
+    document.getElementById("formSave").onclick=()=>{
+      const v={};
+      for(const k in inputs)v[k]=types[k]==="number"?inputs[k].value.replace(/[^0-9]/g,""):inputs[k].value;
+      // 유효성 검사 — 통과 못하면 닫지 않고 안내
+      for(const f of o.fields){
+        if(f.type==="number"&&f.required!==false&&(v[f.key]===""||+v[f.key]<=0)){
+          toast(f.emptyMsg||"금액을 입력해 주세요");
+          const inp=inputs[f.key];if(inp){inp.focus();inp.style.outline="2px solid var(--danger)";setTimeout(()=>inp.style.outline="",1200);}
+          return;
+        }
+      }
+      closeForm();o.onSave(v);
+    };
     fbackdrop.classList.add("open");formSheet.classList.add("open");
     setTimeout(()=>{const first=body.querySelector("input");if(first)first.focus();},320);
   }
