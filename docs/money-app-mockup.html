@@ -698,7 +698,7 @@ const TX=[
       if(!vis.length)return;
       const collapsed=collapsedDays.has(g.date);
       const head=document.createElement("button");head.className="dayhead reveal";
-      const ds=g.items.filter(t=>t.kind!=="income"&&!t.excluded).reduce((s,t)=>s+netOut(t),0);
+      const ds=g.items.filter(t=>t.kind!=="income").reduce((s,t)=>s+(mode==="all"?(t.out||0):(t.excluded?0:netOut(t))),0);
       head.innerHTML=`<span class="dchev">▾</span><span>${g.date.split(".")[0]}월 ${g.date.split(".")[1]}일 (${g.dow})</span><span class="dsum">${ds?("-"+fmt(ds)):""}</span>`;
       const wrap=document.createElement("div");wrap.className="day-rows"+(collapsed?"":" open");
       vis.forEach(t=>wrap.appendChild(rowEl(t)));
@@ -724,7 +724,7 @@ const TX=[
     if(t.reimbursed>0)chipHtml+=`<span class="chip" style="color:var(--income)">정산</span>`;
     if(t.userMemo)chipHtml+=`<span class="chip">✎</span>`;
     const amt=t.kind==="income"?`<span class="amt in">+${fmt(t.in)}</span>`
-      :(t.reimbursed>0?`<span class="amt">-${fmt(netOut(t))}</span>`:`<span class="amt">-${fmt(t.out)}</span>`);
+      :`<span class="amt">-${fmt(mode==="all"?(t.out||0):netOut(t))}</span>`;
     const act=t.kind==="income"?"":`<span class="action">${t.excluded?"되돌리기":"소비 아님"}</span>`;
     b.innerHTML=`<span class="dot">${ICON[t.kind]||"₩"}</span><span class="mid"><span class="name">${t.name}</span><span class="sub">${chipHtml}<span>${t.time}</span></span></span>${amt}${act}`;
     const a=b.querySelector(".action");
@@ -745,8 +745,8 @@ const TX=[
       else{spend+=netOut(t);settled+=(t.reimbursed||0);}});
     const shown=mode==="all"?out:spend;  // Kira=진짜 소비(정산 반영), All=총 출금
     animateNumber(document.getElementById("hero-spend"),lastSpend,shown,skip);lastSpend=shown;
-    document.getElementById("hero-out").textContent="₩ "+Math.round(out).toLocaleString("ko-KR");
-    document.getElementById("hero-excl").textContent="₩ "+Math.round(out-spend).toLocaleString("ko-KR");
+    document.getElementById("hero-out").textContent=fmt(out);
+    document.getElementById("hero-excl").textContent=fmt(out-spend);
     const p=[];if(self)p.push(`이체 <b>${fmt(self)}</b>`);if(loan)p.push(`대여 <b>${fmt(loan)}</b>`);
     if(settled)p.push(`정산받음 <b>${fmt(settled)}</b>`);
     document.getElementById("hero-breakdown").innerHTML=p.length?("제외 "+p.join(" · ")):"";
@@ -842,7 +842,7 @@ const TX=[
           <span class="amt" style="color:var(--income)">+${fmt(x.amount)}</span>
         </div></div>`;
       sw.querySelector(".sw-edit").addEventListener("click",()=>openIncomeEditForm(i));
-      sw.querySelector(".sw-del").addEventListener("click",()=>{INCOME.splice(i,1);renderBudget();toast("삭제됨");});
+      sw.querySelector(".sw-del").addEventListener("click",()=>{INCOME.splice(i,1);saveIncome();renderBudget();toast("삭제됨");});
       attachSwipe(sw);il.appendChild(sw);});
     renderGoals();
     updateGoalUI();
@@ -850,10 +850,10 @@ const TX=[
   }
   function openIncomeForm(){openForm({title:"Add income",
     fields:[{key:"name",label:"Name",type:"text",value:"",ph:"예: 용돈"},{key:"amount",label:"Amount (₩)",type:"number",value:"",ph:"0"}],
-    onSave:v=>{const a=+v.amount;if(a>0){INCOME.push({name:v.name||"수입",amount:a,date:`${M()}.${String(new Date().getDate()).padStart(2,"0")}`});renderBudget();toast("추가됐어요");}}});}
+    onSave:v=>{const a=+v.amount;if(a>0){INCOME.push({name:v.name||"수입",amount:a,date:`${M()}.${String(new Date().getDate()).padStart(2,"0")}`});saveIncome();renderBudget();toast("추가됐어요");}}});}
   function openIncomeEditForm(i){const x=INCOME[i];openForm({title:"수입 수정",
     fields:[{key:"name",label:"항목",type:"text",value:x.name},{key:"amount",label:"금액 (₩)",type:"number",value:x.amount}],
-    onSave:v=>{x.name=v.name||x.name;const a=+v.amount;if(a>0)x.amount=a;renderBudget();toast("저장됐어요");}});}
+    onSave:v=>{x.name=v.name||x.name;const a=+v.amount;if(a>0)x.amount=a;saveIncome();renderBudget();toast("저장됐어요");}});}
 
   function renderStats(){
     const agg={};
@@ -889,9 +889,9 @@ const TX=[
           <span class="amt">${fmt(l.amount)}</span>
           <button class="pillbtn ${l.repaid?"done":""}">${l.repaid?"Repaid ✓":"Repaid"}</button>
         </div></div>`;
-      sw.querySelector(".pillbtn").addEventListener("click",e=>{const b=e.currentTarget;b.classList.add("popped");LENT[i].repaid=!LENT[i].repaid;setTimeout(()=>renderLent(),reduceMotion?0:280);});
+      sw.querySelector(".pillbtn").addEventListener("click",e=>{const b=e.currentTarget;b.classList.add("popped");LENT[i].repaid=!LENT[i].repaid;saveLent();setTimeout(()=>renderLent(),reduceMotion?0:280);});
       sw.querySelector(".sw-edit").addEventListener("click",()=>openLentForm(i));
-      sw.querySelector(".sw-del").addEventListener("click",()=>{LENT.splice(i,1);renderLent();toast("삭제됨");});
+      sw.querySelector(".sw-del").addEventListener("click",()=>{LENT.splice(i,1);saveLent();renderLent();toast("삭제됨");});
       attachSwipe(sw);el.appendChild(sw);
     });
     const owed=LENT.filter(l=>!l.repaid).reduce((s,l)=>s+l.amount,0);
@@ -900,7 +900,7 @@ const TX=[
   }
   function openLentForm(i){const l=LENT[i];openForm({title:"대여 수정",
     fields:[{key:"name",label:"이름",type:"text",value:l.name},{key:"amount",label:"금액 (₩)",type:"number",value:l.amount}],
-    onSave:v=>{l.name=v.name||l.name;const a=+v.amount;if(a>0)l.amount=a;renderLent();toast("저장됐어요");}});}
+    onSave:v=>{l.name=v.name||l.name;const a=+v.amount;if(a>0)l.amount=a;saveLent();renderLent();toast("저장됐어요");}});}
 
   const TITLES={home:"Kira",stats:"Stats",budget:"Budget",lent:"Lent",accounts:"Accounts",settings:"Settings"};
   function applyView(name){
@@ -930,18 +930,19 @@ const TX=[
   hamb.addEventListener("click",()=>drawer.classList.contains("open")?closeDrawer():openDrawer());
   scrim.addEventListener("click",closeDrawer);
 
-  const sheet=document.getElementById("sheet"),backdrop=document.getElementById("backdrop");let sheetIdx=null;
+  const sheet=document.getElementById("sheet"),backdrop=document.getElementById("backdrop");let sheetIdx=null,sheetChanged=false;
+  function refreshCurrent(){if(current==="home")renderList(false);else if(current==="stats")renderStats();else if(current==="budget")renderBudget();}
   function openSheet(i){
-    sheetIdx=i;const t=TX[i];
+    sheetIdx=i;sheetChanged=false;const t=TX[i];
     document.getElementById("sh-name").textContent=t.name;
     document.getElementById("sh-time").textContent=`${t.date.split(".")[0]}월 ${t.date.split(".")[1]}일 · ${t.time}`;
     document.getElementById("sh-amt").textContent=(t.kind==="income"?"+":"-")+fmt(t.out||t.in);
     const ce=document.getElementById("sh-cats");ce.innerHTML="";
     CATS.forEach(c=>{const cb=document.createElement("button");cb.className="catbtn";cb.textContent=c;cb.setAttribute("aria-pressed",t.cat===c);
-      cb.addEventListener("click",()=>{TX[i].cat=c;saveOver(TX[i]);ce.querySelectorAll(".catbtn").forEach(x=>x.setAttribute("aria-pressed",x.textContent===c));});ce.appendChild(cb);});
+      cb.addEventListener("click",()=>{TX[i].cat=c;sheetChanged=true;saveOver(TX[i]);ce.querySelectorAll(".catbtn").forEach(x=>x.setAttribute("aria-pressed",x.textContent===c));});ce.appendChild(cb);});
     const te=document.getElementById("sh-tags");te.innerHTML="";
     const db=document.createElement("button");db.className="catbtn";db.textContent="데이트";db.setAttribute("aria-pressed",!!t.isDate);
-    db.addEventListener("click",()=>{TX[i].isDate=!TX[i].isDate;saveOver(TX[i]);db.setAttribute("aria-pressed",!!TX[i].isDate);});
+    db.addEventListener("click",()=>{TX[i].isDate=!TX[i].isDate;sheetChanged=true;saveOver(TX[i]);db.setAttribute("aria-pressed",!!TX[i].isDate);});
     te.appendChild(db);
     // 정산받은 금액 (지출만 노출) + 실제 소비 미리보기
     const wrap=document.getElementById("sh-settle-wrap"),si=document.getElementById("sh-settle"),net=document.getElementById("sh-net");
@@ -951,10 +952,10 @@ const TX=[
       const upd=()=>{const g=si.value.replace(/[^0-9]/g,"");si.value=g?Number(g).toLocaleString("ko-KR"):"";
         TX[i].reimbursed=g?+g:0;saveOver(TX[i]);
         net.textContent=`내 실제 소비 ${fmt(netOut(TX[i]))}`+(TX[i].reimbursed?` (출금 ${fmt(t.out)} − 정산 ${fmt(TX[i].reimbursed)})`:"");};
-      si.oninput=upd;upd();}
+      si.oninput=()=>{sheetChanged=true;upd();};upd();}
     // 메모
     const mi=document.getElementById("sh-memo");mi.value=t.userMemo||"";
-    mi.oninput=()=>{TX[i].userMemo=mi.value;saveOver(TX[i]);};
+    mi.oninput=()=>{TX[i].userMemo=mi.value;sheetChanged=true;saveOver(TX[i]);};
     // 더보기: 정산/메모가 이미 있으면 펼쳐서, 없으면 접어서 열기
     const more=document.getElementById("sh-more"),moreWrap=document.getElementById("sh-more-wrap");
     const hasExtra=(t.reimbursed>0)||!!t.userMemo;
@@ -962,7 +963,7 @@ const TX=[
     const tg=document.getElementById("sh-toggle");tg.textContent=t.excluded?"소비로 되돌리기":"소비 아님으로 빼기";tg.classList.toggle("undo",!!t.excluded);
     backdrop.classList.add("open");sheet.classList.add("open");
   }
-  function closeSheet(){backdrop.classList.remove("open");sheet.classList.remove("open");}
+  function closeSheet(){backdrop.classList.remove("open");sheet.classList.remove("open");if(sheetChanged){sheetChanged=false;refreshCurrent();}}
   backdrop.addEventListener("click",closeSheet);
   document.getElementById("sh-close").addEventListener("click",closeSheet);
   document.getElementById("sh-more").addEventListener("click",()=>{const m=document.getElementById("sh-more"),w=document.getElementById("sh-more-wrap");
@@ -1102,11 +1103,15 @@ const TX=[
   function loadUserState(){
     try{txOver=JSON.parse(LS.getItem('kira_tx_over')||'{}');}catch(e){txOver={};}
     try{const g=JSON.parse(LS.getItem('kira_goals')||'null');if(g)GOAL_OVER=g;}catch(e){}
+    try{const inc=JSON.parse(LS.getItem('kira_income')||'null');if(inc){INCOME.length=0;inc.forEach(x=>INCOME.push(x));}}catch(e){}
+    try{const ln=JSON.parse(LS.getItem('kira_lent')||'null');if(ln){LENT.length=0;ln.forEach(x=>LENT.push(x));}}catch(e){}
   }
   function saveOver(t){txOver[txKey(t)]={excluded:!!t.excluded,cat:t.cat,isDate:!!t.isDate,reimbursed:t.reimbursed||0,userMemo:t.userMemo||""};LS.setItem('kira_tx_over',JSON.stringify(txOver));}
   // 내 실제 소비 = 출금 − 정산받은 금액
   function netOut(t){return Math.max(0,(t.out||0)-(t.reimbursed||0));}
   function saveGoals(){LS.setItem('kira_goals',JSON.stringify(GOAL_OVER));}
+  function saveIncome(){LS.setItem('kira_income',JSON.stringify(INCOME));}
+  function saveLent(){LS.setItem('kira_lent',JSON.stringify(LENT));}
 
   async function decryptBlob(blob,pass){
     const enc=new TextEncoder(),dec=new TextDecoder();
@@ -1144,9 +1149,9 @@ const TX=[
         isDate:(o.isDate!==undefined?o.isDate:!!t.isDate),
         reimbursed:(o.reimbursed!==undefined?o.reimbursed:0),
         userMemo:(o.userMemo!==undefined?o.userMemo:(t.userMemo||""))}));});
-    INCOME.length=0;
-    data.transactions.filter(t=>t.kind==='income').forEach(t=>INCOME.push({name:t.name,amount:t.in||0,date:t.date}));
-    LENT.length=0;
+    if(!LS.getItem('kira_income')){INCOME.length=0;
+      data.transactions.filter(t=>t.kind==='income').forEach(t=>INCOME.push({name:t.name,amount:t.in||0,date:t.date}));}
+    if(!LS.getItem('kira_lent'))LENT.length=0;
     lastSync=data.updated;
   }
   function askPassphrase(){
